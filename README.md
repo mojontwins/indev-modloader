@@ -73,11 +73,13 @@ Run and we get 'ModLoader initialized!' in the console.
 First of all we need to create basic abstract method `load` in `BaseMod.java`:
 
 ```java
-	package com.mojontwins.modloader;
-
-	abstract class BaseMod {
-		public abstract void load ();
-	}
+    abstract class BaseMod {
+        public abstract void load () throws Exception;
+        
+        public void modsLoaded () {
+            
+        }
+    }
 ```
 
 And then instantiate it in our `mod_Example.java` with a simple `System.out.println`:
@@ -86,7 +88,7 @@ And then instantiate it in our `mod_Example.java` with a simple `System.out.prin
 	package com.mojontwins.modloader;
 
 	public class mod_Example extends BaseMod {
-		public void load () {
+		public void load () throws Exception {
 			System.out.println ("mod_Example load!");
 		}
 	}
@@ -177,3 +179,300 @@ For now, we are not adding the ability for mod's to read .cfg files, nor be orde
     ModLoader initialized!
 ```
 
+# Use your mod class to load new Blocks
+
+First think I want to do is creating a system to get dynamic block IDs, as I don't like having to hard-code them. First of all I need to keep track of what block IDs are already taken by the base class, and which texture indexes from the texture atlas are in use, then provide methods to obtain IDs, texture indexes, and overriding textures.
+
+Looking at the base `Block.java` it seems that blocks 1-63 are in use. That makes my life easier, as I just have to provide blockIDs from 64 onwards. Next task is checking which texture atlas indexes are in use and create a bitmap like the original Modloader uses, and then provide new indexes based on which indexes are free.
+
+A first examination to `terrain.png` yields there apparently free texture indexes:
+
+47, 51, 53, 81, 82, 84, 85, 96, 97, 98, 101-239, 250-255. 
+
+Now I'll have to double check if any of those texture indexes are used for texture effects.
+
+This is how I have mapped available / used texture indexes: 
+
+```java
+    private static final int [] terrainTextureIndexes = new int [] {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
+        1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0
+    };
+```
+
+Now I need a method to retrieve the first terrain texture index available:
+
+```java
+    /*
+     * Retrieves the first unused texture index
+     */
+    public static int getFreeTerrainTextureIndex () {
+        int res = -1;
+        
+        for (int i = currentTerrainTextureIndex; i < 256; i ++) {
+            if (terrainTextureIndexes [i] == 0) {
+                res = i;
+                terrainTextureIndexes [i] = 1;
+                break;
+            }
+        }
+        
+        return res;
+    }
+```
+
+A similar method to retrieve a free blockID is easier, as block IDs are free from 64 onwards. So I just have to keep a counter:
+
+```java
+    public static int currentFreeBlockId = 64;
+
+    [...]
+
+    public static int getBlockId () throws Exception {
+        if (currentFreeBlockId < 256)
+            return currentFreeBlockId ++;
+        else throw new Exception ("No more free block IDs.");
+    }
+```
+
+The next problem we must face is the fact that most block attributes modifier methods are protected. I don't want to edit the base `Block` class if I can avoid it, so I'm creating a `ModBlock` class which inherits from `Block` which re-exports all those methods so you can instantiate them from your mod. Maybe there's a better way but this is where my knowledge of Java ends.
+
+Hell, they are marked as `final` which means I cannot override them! They are not final in the versions I know (b1.7.3, 1.2.5). I guess I'll have to edit the base class :-/ 
+
+I guess I'll have to try a different approach with slightly renamed methods. I'm going to try with this class:
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.block.Material;
+
+    public class ModBlock extends Block {
+
+        protected ModBlock(int id, Material material) {
+            super(id, material);
+        }
+
+        // Reimplement protected methods from Block as they are protected
+        
+        public ModBlock setBlockLightOpacity(int var1) {
+            lightOpacity[this.blockID] = var1;
+            return this;
+        }
+        
+        public ModBlock setBlockLightValue(float var1) {
+            lightValue[this.blockID] = (int)(15.0F * var1);
+            return this;
+        }
+        
+        public ModBlock setBlockResistance(float var1) {
+            setResistance (var1 * 3.0F);
+            return this;
+        }
+        
+        public ModBlock setBlockHardness(float var1) {
+            setHardness (var1);
+            return this;
+        }    
+        
+        public void setBlockTickOnLoad(boolean var1) {
+            tickOnLoad[this.blockID] = var1;
+        }
+
+        public void setBounds(float var1, float var2, float var3, float var4, float var5, float var6) {
+            this.minX = var1;
+            this.minY = var2;
+            this.minZ = var3;
+            this.maxX = var4;
+            this.maxY = var5;
+            this.maxZ = var6;
+        }   
+    }
+``` 
+
+If this doesn't work I'll have to resort back to changing the base class.
+
+So in your mod you basicly would create a new class which inherits from ModBlock, or even use ModBlock directly if you are fine with it. For the sake of completion, I'll do a new class and will try to create a block using that class, give it attributes. Next step will be registering such mod and writing code to add a texture to it.
+
+Let's start by adding a new class:
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.block.Material;
+
+    public class BlockStoneBricks extends ModBlock {
+        protected BlockStoneBricks(int id, Material material) {
+            super(id, material);
+        }
+    }
+```
+
+And for now this seems to be OK:
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.block.Material;
+
+    public class mod_Example extends BaseMod {
+        ModBlock blockStoneBricks;
+        
+        public void load () throws Exception {
+            blockStoneBricks = new BlockStoneBricks(ModLoader.getBlockId (), Material.rock).setBlockHardness(1.5F).setBlockResistance(1.5F);
+            System.out.println ("mod_Example load!");
+        }
+    }
+```
+
+Now it's time to add to ModLoader the means to register the new block in the system. That implies, after having been created calling the constructor (which ends up calling the `Block` constructor), adding it to `Item.itemsList`. Again, I'll be adapting how Risugami's ModLoader does this albeit in a (for the moment) simplified form.
+
+```java
+    public static void registerBlock (ModBlock block, Class<ItemBlock> class1) throws Exception {
+        if (block == null) throw new IllegalArgumentException("block parameter cannot be null.");
+        
+        int i = block.blockID;
+        ItemBlock itemblock = null;
+        
+        if (class1 != null) {
+            itemblock = (ItemBlock)class1.getConstructor(new Class[] {
+                Integer.TYPE
+            }).newInstance(new Object[] {
+                Integer.valueOf(i - 256)
+            });
+        } else {
+            itemblock = new ItemBlock(i - 256);
+        }
+
+        if (Block.blocksList[i] != null && Item.itemsList[i] == null) {
+            Item.itemsList[i] = itemblock;
+        }
+    }
+```
+
+And...
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.block.Material;
+
+    public class mod_Example extends BaseMod {
+        ModBlock blockStoneBricks;
+        
+        public void load () throws Exception {
+            blockStoneBricks = new BlockStoneBricks(ModLoader.getBlockId (), Material.rock).setBlockHardness(1.5F).setBlockResistance(1.5F);
+            ModLoader.registerBlock(blockStoneBricks);
+        }
+    }
+```
+
+At least it doesn't crash when I run it ... yet :'-D
+
+And here comes the hard part: overriding the texture. I say hard as I don't fully understand it yet. I think it is done, in 1.2.5, via a `TextureFX`. There are `TextureFX`s in Indev so I'll try and add it that way. Cross yer fingers.
+
+The original AddOverride takes two parameters: the texture atlas you want to override (`/terrain.png` or `/gui/items.png`) and an URI to the new texture, which should be a 16x16 file. It then gets a unique texture index for it and then enqueues it to a list which is processed latter. Let's begin with this first part. Step by step is better.
+
+I'll use an enum to tell the method which texture atlas I'm attacking. I like that way better.
+
+```java
+    package com.mojontwins.modloader;
+
+    public enum EnumTextureAtlases {
+        TERRAIN {
+            public String toString () { return "/terrain.png"; }
+        }, 
+        ITEMS {
+            public String toString () { return "/gui/items.png"; }
+        }
+    }
+```
+
+```java
+    public static int addOverride (EnumTextureAtlases textureAtlas, String textureURI) {
+        int textureIndex; 
+        
+        if (textureAtlas == EnumTextureAtlases.TERRAIN) {
+            textureIndex = getFreeTerrainTextureIndex ();
+        } else {
+            // TODO
+        }
+        
+        Boolean success = addOverride (textureAtlas, textureURI, textureIndex);
+        
+        return success ? textureIndex : -1;
+    }
+```
+
+Before we go on, we'll need a list of hashes to store our overrides. Each override will contain three keys: textureAtlas, textureURI and textureIndex.
+
+```java
+    public static List<HashMap<String,Object>> overrides;
+```
+
+And this:
+
+```java
+    
+    public static boolean addOverride (EnumTextureAtlases textureAtlas, String textureURI, int textureIndex) {
+        System.out.println ("Overriding " + textureAtlas + " with " + textureURI + " at index " + textureIndex);
+        
+        try {
+            HashMap<String, Object> override = new HashMap<String, Object>();
+            
+            override.put("textureAtlas", textureAtlas);
+            override.put("textureURI", textureURI);
+            override.put("textureIndex", new Integer(textureIndex));
+            
+            overrides.add(override);
+        } catch (Exception e) {
+            return false;
+        }
+        return true;
+    }
+```
+
+So let's try this (texture URI may change, I still don't quite understand how absolute paths work - will experiment later):
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.block.Material;
+
+    public class mod_Example extends BaseMod {
+        ModBlock blockStoneBricks;
+        
+        public void load () throws Exception {
+            blockStoneBricks = new BlockStoneBricks(ModLoader.getBlockId (), Material.rock).setBlockHardness(1.5F).setBlockResistance(1.5F);
+            ModLoader.registerBlock(blockStoneBricks);
+            blockStoneBricks.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "/stone_bricks.png");
+        }
+    }
+```
+
+And it compiles, and doesn't crash. Yet. Console output:
+
+```
+    ModLoader initializing ...
+    Minecraft jar path: D:\Cosas\modloader-indev-wip\MCP-LTS\eclipse\Client\bin
+    Adding mods from D:\Cosas\modloader-indev-wip\MCP-LTS\eclipse\Client\bin
+    Directory found.
+    Mod Initialized: "com.mojontwins.modloader.mod_Example@2c14142e" from mod_Example.class
+    Overriding /terrain.png with /stone_bricks.png at index 47
+    Mod Loaded: ": com.mojontwins.modloader.mod_Example@2c14142e"
+    ModLoader initialized!
+```
