@@ -459,7 +459,7 @@ So let's try this (texture URI may change, I still don't quite understand how ab
         public void load () throws Exception {
             blockStoneBricks = new BlockStoneBricks(ModLoader.getBlockId (), Material.rock).setBlockHardness(1.5F).setBlockResistance(1.5F);
             ModLoader.registerBlock(blockStoneBricks);
-            blockStoneBricks.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "/stone_bricks.png");
+            blockStoneBricks.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_stone_bricks.png");
         }
     }
 ```
@@ -476,3 +476,131 @@ And it compiles, and doesn't crash. Yet. Console output:
     Mod Loaded: ": com.mojontwins.modloader.mod_Example@2c14142e"
     ModLoader initialized!
 ```
+
+## Actually overriding the texture
+
+All we have done is adding a HashMap to a List. Something has to be done, actually. In Risugami's ModLoader, the method in charge is `registerAllTextureOverrides`, which processes the list and does its magic. In the original ModLoader I'm using as a model (1.2.5), this is done in the `onTick` method which is called from EntityRendererProxy (via a base class edit). Maybe my approach is wrong, we'll see with time, but I guess I can just add a call after my `init` method has run, as all `mod_XXX` classes have been loaded and all `load` methods have been called, thus all overrides are in order. So let's take this path, for the moment. So a new addition to `Minecraft.java` (with a slight modification to what we had before):
+
+```java
+    try {
+        ModLoader.init ();
+        ModLoader.registerAllTextureOverrides (this.renderEngine);
+    } catch (Exception e) {
+        e.printStackTrace();
+        this.shutdownMinecraftApplet();
+        return;
+    }
+```
+
+And the new ModLoader method
+
+```java
+    public static void registerAllTextureOverrides (RenderEngine renderEngine) throws Exception {
+        for (Iterator<HashMap<String, Object>> iterator = overrides.iterator(); iterator.hasNext();) {
+            HashMap<String, Object> thisEntry = iterator.next ();
+            String textureURI = thisEntry.get("textureURI");
+            BufferedImage bufferedimage = loadImage(renderEngine, textureURI);
+            ModTextureStatic modTextureStatic = new ModTextureStatic (textureIndex, textureAtlas, bufferedImage);
+            renderEngine.registerTextureFX(modTextureStatic);
+        }
+    }
+```
+
+Now I need to implement `loadImage` and the `ModTextureStatic` TextureFX.
+
+```java
+    public static BufferedImage loadImage (RenderEngine renderEngine, String textureURI) throws Exception {
+        InputStream inputStream = ModLoader.class.getResourceAsStream (textureURI);
+        if (inputStream == null) throw new Exception ("Image not found: " + textureURI);
+        
+        BufferedImage bufferedImage = ImageIO.read(inputStream);
+        if (bufferedImage == null) throw new Exception ("Image corrupted: " + textureURI);
+        
+        return bufferedImage;
+    }
+```
+
+If my knowledge in Java is correct, this makes the image path relative to where ModLoader resides, that is, `/com/mojontwins/modloader/`. Using an absolute path should work as well, but I'll have to make some tests with the system loading the mod from a .zip file in the future if I want to write proper documentation.
+
+Now on to the TextureFX. TextureFXs just render stuff to a pixel array. In our case, we will copy the `BufferedImage` to the pixel array when instantiating the class. 
+
+This is a very simple version which will only work with 16x16 pixel textures. Bigger textures would need a more fancy implementation like Risugami's. But for now this will suffice:
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.awt.image.BufferedImage;
+
+    import net.minecraft.client.renderer.block.TextureFX;
+
+    public class ModTextureStatic extends TextureFX {
+        public ModTextureStatic(int textureIndex, EnumTextureAtlases textureAtlas, BufferedImage bufferedImage) {
+            super(textureIndex);
+            
+            // Load the texture to the `imagedata` array
+            int pixels [] = new int [256];
+            bufferedImage.getRGB (0, 0, 16, 16, pixels, 0, 16);
+            
+            for (int i = 0; i < 256; i ++) {
+                imageData [4 * i + 0] = (byte) ((pixels [i] >> 16) & 0xff);
+                imageData [4 * i + 1] = (byte) ((pixels [i] >> 8) & 0xff);
+                imageData [4 * i + 2] = (byte) (pixels [i] & 0xff);
+                imageData [4 * i + 3] = (byte) ((pixels [i] >> 24) & 0xff);
+            }       
+        }
+
+        public void onTick () {
+            // Does nothing
+        }
+    }
+```
+
+So now we have the full set - but we still can't see anything. But running yields... no crashes! (yet!!).
+
+To show this is working we'll add a hook I might remove or modify later. In `net.minecraft.game.level.generator.LevelGenerator`, method `generate`, we are going to add a call to a new method in `BaseMod` to paint some stuff to the level, right before the "planting" stage, @ around line 412:
+
+```java
+    [...]
+
+    ModLoader.generateStructures (this, var6);
+
+    [...]
+```
+
+Then, make ModLoader call the same method of all defined `BaseMod` instances:
+
+```java
+    public static void generateStructures (LevelGenerator levelGenerator, World world) {
+        for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+            ((BaseMod)iterator.next()).generateStructures(levelGenerator, world);
+        }
+    }
+```
+
+Make our `BaseMod` a bit less barren:
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.level.World;
+    import net.minecraft.game.level.generator.LevelGenerator;
+
+    abstract class BaseMod {
+        public abstract void load () throws Exception;
+        
+        public void modsLoaded () { 
+        }
+        
+        public void generateStructures (LevelGenerator levelGenerator, World world) {
+        }
+    }
+```
+
+And now add actual code to `mod_Example`. We are just going to add our new block on top of the spawn house...
+
+```java
+    public void generateStructures (LevelGenerator levelGenerator, World world) {
+        world.setBlockWithNotify(world.xSpawn, world.ySpawn + 1, world.zSpawn - 3, blockStoneBricks.blockID);
+    }
+```
+

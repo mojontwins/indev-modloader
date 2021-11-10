@@ -1,9 +1,11 @@
 package com.mojontwins.modloader;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
@@ -15,13 +17,19 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import javax.imageio.ImageIO;
+
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.RenderEngine;
 import net.minecraft.game.block.Block;
 import net.minecraft.game.item.Item;
 import net.minecraft.game.item.ItemBlock;
+import net.minecraft.game.level.World;
+import net.minecraft.game.level.generator.LevelGenerator;
 
 public class ModLoader {
 	public static boolean isInitialized;
@@ -64,6 +72,12 @@ public class ModLoader {
 		isInitialized = true;
 		
 		System.out.println ("ModLoader initializing ...");
+		
+		// Initialize currentTerrainTextureIndex
+		currentTerrainTextureIndex = 0;
+		
+		// Initialize overrides
+		overrides = new ArrayList<HashMap<String,Object>>();
 		
 		try {
 	        File file;
@@ -116,12 +130,6 @@ public class ModLoader {
 			e.printStackTrace();
 			throw new RuntimeException ("Exception in ModLoader.init", e);			
 		}
-		
-		// Initialize currentTerrainTextureIndex
-		currentTerrainTextureIndex = 0;
-		
-		// Initialize overrides
-		overrides = new ArrayList<HashMap<String,Object>>();
 		
 		System.out.println ("ModLoader initialized!");
 	}
@@ -195,6 +203,39 @@ public class ModLoader {
 		return true;
 	}
 	
+	public static void registerAllTextureOverrides (RenderEngine renderEngine) throws Exception {
+		try {
+			for (Iterator<HashMap<String, Object>> iterator = overrides.iterator(); iterator.hasNext();) {
+				Map<String, Object> thisEntry = iterator.next ();
+				
+				String textureURI = (String) thisEntry.get("textureURI");
+				int textureIndex = (Integer) thisEntry.get("textureIndex");
+				EnumTextureAtlases textureAtlas = (EnumTextureAtlases) thisEntry.get("textureAlias");
+				
+				System.out.println ("Creating ModTextureStatic for texture " + textureIndex + " from " + textureURI);
+				
+				BufferedImage bufferedImage = loadImage(renderEngine, textureURI);
+				
+				ModTextureStatic modTextureStatic = new ModTextureStatic (textureIndex, textureAtlas, bufferedImage);
+				renderEngine.registerTextureFX(modTextureStatic);
+			}
+		} catch (Exception e) {
+			System.out.println ("Exception @ registerAllTextureOverrides" + e);
+			e.printStackTrace();
+			throw e;
+		}
+	}
+	
+	public static BufferedImage loadImage (RenderEngine renderEngine, String textureURI) throws Exception {
+		InputStream inputStream = ModLoader.class.getResourceAsStream (textureURI);
+		if (inputStream == null) throw new Exception ("Image not found: " + textureURI);
+		
+		BufferedImage bufferedImage = ImageIO.read(inputStream);
+		if (bufferedImage == null) throw new Exception ("Image corrupted: " + textureURI);
+		
+		return bufferedImage;
+	}
+	
 	/*
 	 * This is basicly Risugami's method
 	 */
@@ -262,7 +303,7 @@ public class ModLoader {
         		
         		if (file.isFile()) {
         			// Read from .zip file
-        			System.out.println ("Zip found");
+        			System.out.println ("+ Zip found: " + file);
         			FileInputStream fileInputStream = new FileInputStream(file);
         			ZipInputStream zipInputStream = new ZipInputStream(fileInputStream);
         			
@@ -282,7 +323,7 @@ public class ModLoader {
         				file = new File(file, s);
         			}
         			
-        			System.out.println ("Directory found");
+        			System.out.println ("+ Directory found: " + file);
         			File afile1[] = file.listFiles();
         			
         			if (afile1 != null) {
@@ -311,7 +352,7 @@ public class ModLoader {
         ClassLoader classloader = (com.mojontwins.modloader.ModLoader.class).getClassLoader();
 
         if (file.isFile() && (file.getName().endsWith(".jar") || file.getName().endsWith(".zip"))) {
-            System.out.println ("Zip found.");
+            System.out.println ("+ Zip found: " + file);
             FileInputStream fileInputStream = new FileInputStream(file);
             ZipInputStream zipInputStream = new ZipInputStream(fileInputStream);
 
@@ -331,7 +372,7 @@ public class ModLoader {
                 file = new File(file, s);
             }
 
-            System.out.println("Directory found.");
+            System.out.println("+ Directory found: " + file);
             File afile[] = file.listFiles();
 
             if (afile != null) {
@@ -385,4 +426,10 @@ public class ModLoader {
             throw (throwable);
         }
     }    
+    
+    public static void generateStructures (LevelGenerator levelGenerator, World world) {
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+        	((BaseMod)iterator.next()).generateStructures(levelGenerator, world);
+        }
+    }
 }
