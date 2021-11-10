@@ -1,0 +1,30 @@
+diff -Naur "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/Minecraft.java" "MCP-LTS\\src/minecraft/net/minecraft/client/Minecraft.java"
+--- "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/Minecraft.java"	2021-11-10 11:11:51.701815400 +0100
++++ "MCP-LTS\\src/minecraft/net/minecraft/client/Minecraft.java"	2021-11-10 10:14:48.304911600 +0100
+@@ -58,6 +58,8 @@
+ import org.lwjgl.opengl.GL11;
+ import org.lwjgl.opengl.GLContext;
+ 
++import com.mojontwins.modloader.ModLoader;
++
+ public final class Minecraft implements Runnable {
+     public PlayerController playerController = new PlayerControllerSP(this);
+     private boolean fullscreen = false;
+@@ -93,7 +95,7 @@
+     private MinecraftApplet mcApplet;
+     public SoundManager sndManager;
+     public MouseHelper mouseHelper;
+-    public File mcDataDir;
++    public static File mcDataDir;
+     private String server;
+     private TextureWaterFX textureWaterFX;
+     private TextureLavaFX textureLavaFX;
+@@ -310,6 +312,8 @@
+ 
+         long var23 = System.currentTimeMillis();
+         int var28 = 0;
++        
++        ModLoader.init ();
+ 
+         try {
+             while(this.running) {
