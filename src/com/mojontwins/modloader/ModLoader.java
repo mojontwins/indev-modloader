@@ -28,8 +28,10 @@ import net.minecraft.client.renderer.RenderEngine;
 import net.minecraft.game.block.Block;
 import net.minecraft.game.item.Item;
 import net.minecraft.game.item.ItemBlock;
+import net.minecraft.game.item.ItemStack;
 import net.minecraft.game.level.World;
 import net.minecraft.game.level.generator.LevelGenerator;
+import net.minecraft.game.recipe.CraftingManager;
 
 public class ModLoader {
 	public static boolean isInitialized;
@@ -427,9 +429,32 @@ public class ModLoader {
         }
     }    
     
-    public static void generateStructures (LevelGenerator levelGenerator, World world) {
+    /*
+     * Hooks
+     */
+    
+    // This one runs after the player spawn point has been calculated and the house has been put into the world.
+    public static void hookGenerateStructures (LevelGenerator levelGenerator, World world) {
     	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
-        	((BaseMod)iterator.next()).generateStructures(levelGenerator, world);
+        	((BaseMod)iterator.next()).hookGenerateStructures(levelGenerator, world);
         }
+    }
+    
+    // This one runs right before the game starts
+    public static void hookGameStart (Minecraft minecraft) {
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+        	((BaseMod)iterator.next()).hookGameStart(minecraft);
+        }
+	}
+    
+    /*
+     * Recipes & Smelting
+     */
+    public static void addRecipe (ItemStack itemStack, Object obj []) {
+    	ModCraftingManager.addRecipe(itemStack, obj);
+    }
+    
+    public static void addSmelting (int input, int output) {
+    	ModFurnaceRecipes.addSmeltingRecipe(input, output);
     }
 }

@@ -6,7 +6,7 @@ A modloader for Minecraft indev 20100223
 
 This document and repository will contain my efforts in creating a modloader for indev. This file will document the process and means to be didactic. I intend to make a release for every feature I add. The goal is being able to create rather complex indev mod using a mod_Name.java file. This modloader will modify whichever base classes are needed to make this possible, thus it will be released in form of a jar-drop mod.
 
-This ModLoader is of course based on how Risugami's original ModLoader works, but it's not a port - albeit some methods are basicly the same.
+**This ModLoader is based in Risugami's original ModLoader**, but it's not a *direct* port - albeit some methods are basicly the same.
 
 I'm using [MCP-LTS](https://github.com/ModificationStation/1.7.3-LTS) to decompile and modify Minecraft Indev 20100223, so big thanks to all developers and contributors.
 
@@ -251,9 +251,7 @@ A similar method to retrieve a free blockID is easier, as block IDs are free fro
 
 The next problem we must face is the fact that most block attributes modifier methods are protected. I don't want to edit the base `Block` class if I can avoid it, so I'm creating a `ModBlock` class which inherits from `Block` which re-exports all those methods so you can instantiate them from your mod. Maybe there's a better way but this is where my knowledge of Java ends.
 
-Hell, they are marked as `final` which means I cannot override them! They are not final in the versions I know (b1.7.3, 1.2.5). I guess I'll have to edit the base class :-/ 
-
-I guess I'll have to try a different approach with slightly renamed methods. I'm going to try with this class:
+Hell, they are marked as `final` which means I cannot override them! They are not final in the versions I know (b1.7.3, 1.2.5). I guess I'll have to try a different approach with slightly renamed methods. I'm going to try with this class:
 
 ```java
     package com.mojontwins.modloader;
@@ -262,6 +260,7 @@ I guess I'll have to try a different approach with slightly renamed methods. I'm
     import net.minecraft.game.block.Material;
 
     public class ModBlock extends Block {
+        public String name;
 
         protected ModBlock(int id, Material material) {
             super(id, material);
@@ -291,6 +290,11 @@ I guess I'll have to try a different approach with slightly renamed methods. I'm
         
         public void setBlockTickOnLoad(boolean var1) {
             tickOnLoad[this.blockID] = var1;
+        }
+        
+        public ModBlock setName(String name) {
+            this.name = name;
+            return this;
         }
 
         public void setBounds(float var1, float var2, float var3, float var4, float var5, float var6) {
@@ -375,7 +379,7 @@ And...
         ModBlock blockStoneBricks;
         
         public void load () throws Exception {
-            blockStoneBricks = new BlockStoneBricks(ModLoader.getBlockId (), Material.rock).setBlockHardness(1.5F).setBlockResistance(1.5F);
+            blockStoneBricks = new BlockStoneBricks(ModLoader.getBlockId (), Material.rock).setBlockHardness(1.5F).setBlockResistance(1.5F).setName("block.stone_bricks");
             ModLoader.registerBlock(blockStoneBricks);
         }
     }
@@ -457,7 +461,7 @@ So let's try this (texture URI may change, I still don't quite understand how ab
         ModBlock blockStoneBricks;
         
         public void load () throws Exception {
-            blockStoneBricks = new BlockStoneBricks(ModLoader.getBlockId (), Material.rock).setBlockHardness(1.5F).setBlockResistance(1.5F);
+            blockStoneBricks = new BlockStoneBricks(ModLoader.getBlockId (), Material.rock).setBlockHardness(1.5F).setBlockResistance(1.5F).setName("block.stone_bricks");
             ModLoader.registerBlock(blockStoneBricks);
             blockStoneBricks.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_stone_bricks.png");
         }
@@ -604,3 +608,313 @@ And now add actual code to `mod_Example`. We are just going to add our new block
     }
 ```
 
+And it works!
+
+TODO: I will later reimplement the Block ID system using some kind of registry that gets saved alognside worlds so IDs are reassigned when loading worlds.
+
+# Crafting & smelting
+
+We are modifying the roadmap so we can actually use our new blocks right away in the game. We have a new stone bricks block in our example. To get those in game, we have to smelt cobblestone to stone and then craft 4 bricks using 4 stones. 
+
+The needed new `ModLoader` methods, `addRecipe` and `addSmelting`. 
+
+## Crafting recipes
+
+But there are some problems... First of all, `addRecipe` is not public, and the `CraftingManager` class is @#!! final so can't be extended, and the array `recipes` is private. I said I wanted to keep base classes edits to a bare minimum, so I'm going to give this a proper thinking.
+
+Right now `GuiCrafting` creates a new `CraftingManager` instance, which adds all needed recipes to itself, and calls `findMatchingRecipe`. I have two alternatives:
+
+1.- Making `CraftingManager` recipe list `static`, adding all recipes staticly, then change how `GuiCrafting` accesses it. 
+2.- Making my own `ModCraftingManager` and patch `GuiCrafting` to use mine as well.
+
+I find that 2 would result on way less base class edits (just one). 1 would mean changing `CraftingManager` almost completely, and fixing crappy Notch code is not my job (in this project, at least). So I'll take the second approach. 
+
+The original `CraftingManager` is used this way from `GuiCrafting`: 
+
+```java
+    this.iInventory.setInventorySlotContents(0, CraftingManager.getInstance().findMatchingRecipe(var1));
+```
+
+Where `var1` is a 9 items array containing item IDs or -1 for empty slots. `findMatchingRecipe` returns an `ItemStack` which is then placed to the inventory at slot 0. I think I can still use the providede `CraftingRecipe` to implement my `ModCraftingManager` class.
+
+First attempt:
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.util.ArrayList;
+    import java.util.HashMap;
+    import java.util.List;
+
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.item.Item;
+    import net.minecraft.game.item.ItemStack;
+    import net.minecraft.game.recipe.CraftingRecipe;
+
+    public class ModCraftingManager {
+        public static List<CraftingRecipe> recipes;
+        
+        static {
+            recipes = new ArrayList<CraftingRecipe> ();
+        }
+
+        public ModCraftingManager() {
+            // TODO Auto-generated constructor stub
+        }
+
+        public static void addRecipe(ItemStack itemStack, Object obj []) {
+
+            /*
+             * "obj" parameters are a sequence that goes this way:
+             * - up to three strings OR one string array
+             * - then a sequence of char, [item|block]
+             */
+
+            int paramIndex = 0;
+
+            /* 
+             * First task is concatenate everything to a string and determine the size of the recipe
+             */
+
+            String recipeString = "";        
+            int recipeWidth = 0;
+            int recipeHeight = 0;
+            
+            if (obj[0] instanceof String[]) {
+                // Recipe comes in an array of String
+
+                ++paramIndex;
+
+                String[] recipeArray = (String[])obj[0];
+                recipeHeight = recipeArray.length;
+
+                // Concatenate recipe:
+                for(int i = 0; i < recipeHeight; ++i) {
+                    if (recipeWidth < recipeArray [i].length ()) recipeWidth = recipeArray [i].length ();
+                    recipeString = recipeString + recipeArray [i];
+                }
+            } else {
+                // Recipe comes in separate String parameters
+
+                while(obj[paramIndex] instanceof String) {
+                    String recipeRow = (String)obj[paramIndex++];
+                    ++recipeHeight;
+                    if (recipeWidth < recipeRow.length ()) recipeWidth = recipeRow.length();
+                    recipeString = recipeString + recipeRow;
+                }
+            }
+
+            // Now read the list of ingredients
+
+            HashMap<Character,Integer> ingredients = new HashMap<Character,Integer>();
+            
+            for(; paramIndex < obj.length; paramIndex += 2) {
+                Character recipeChar = (Character)obj[paramIndex];
+                int blockOrItemID = 0;
+                if (obj[paramIndex + 1] instanceof Item) {
+                    blockOrItemID = ((Item)obj[paramIndex + 1]).shiftedIndex;
+                } else if (obj[paramIndex + 1] instanceof Block) {
+                    blockOrItemID = ((Block)obj[paramIndex + 1]).blockID;
+                }
+
+                ingredients.put(recipeChar, blockOrItemID);
+            }
+
+            // And create an integer array ready to use
+
+            int[] recipeIds = new int[recipeWidth * recipeHeight];
+
+            for(int i = 0; i < recipeWidth * recipeHeight; ++i) {
+                char c = recipeString.charAt(i);
+                if (ingredients.containsKey(c)) {
+                    recipeIds[i] = (Integer)ingredients.get(c);
+                } else {
+                    recipeIds[i] = -1;
+                }
+            }
+
+            recipes.add(new CraftingRecipe(recipeWidth, recipeHeight, recipeIds, itemStack));
+        }
+        
+        public static ItemStack findMatchingRecipe(int[] recipeIds) {
+            for(int i = 0; i < recipes.size(); ++i) {
+                CraftingRecipe var3 = (CraftingRecipe)recipes.get(i);
+                if (var3.matchRecipe(recipeIds)) {
+                    return var3.createResult();
+                }
+            }
+
+            return null;
+        }
+    }
+```
+
+So here comes our base class edit: in `GuiCrafting`, instead of this:
+
+```java
+    this.iInventory.setInventorySlotContents(0, CraftingManager.getInstance().findMatchingRecipe(var1));
+```
+
+We oughta do this:
+
+```java
+    ItemStack itemStack = CraftingManager.getInstance().findMatchingRecipe(var1);
+    if (itemStack == null) {
+        itemStack = ModCraftingManager.findMatchingRecipe(var1);
+    }
+
+    this.iInventory.setInventorySlotContents(0, itemStack);
+``` 
+
+So now we can add the new method to `ModLoader`:
+
+```java
+    public static void addRecipe (ItemStack itemStack, Object obj []) {
+        ModCraftingManager.addRecipe(itemStack, obj);
+    }
+```
+
+And this, to `mod_Example`:
+
+```java
+    ModLoader.addRecipe(new ItemStack(blockStoneBricks, 4), new Object [] {
+        "XX", "XX",
+        'X', Block.stone
+    });
+```
+
+Which seems to compile and run without problems (can't test it yet until we have smelting on).
+
+## Smelting recipes
+
+Smelting stuff is embedded inside `TileEntityFurnace` in this version of Minecraft. So no `FurnaceRecipes` class like in 1.2.5, I'm afraid. After some study, I've discovered, in awe, that all there is is this method:
+
+```java
+    private static int smeltItem(int var0) {
+        if (var0 == Block.oreIron.blockID) {
+            return Item.ingotIron.shiftedIndex;
+        } else if (var0 == Block.oreGold.blockID) {
+            return Item.ingotGold.shiftedIndex;
+        } else if (var0 == Block.oreDiamond.blockID) {
+            return Item.diamond.shiftedIndex;
+        } else if (var0 == Block.sand.blockID) {
+            return Block.glass.blockID;
+        } else if (var0 == Item.porkRaw.shiftedIndex) {
+            return Item.porkCooked.shiftedIndex;
+        } else {
+            return var0 == Block.cobblestone.blockID ? Block.stone.blockID : -1;
+        }
+    }
+```
+
+Everything is hardcoded. Great (not). There's no way I can add more smelting recipes without editing the `TileEntityFurnace` base class. We can do something like this:
+
+```java
+    private static int smeltItem (int var0) {
+        int result = ModFurnaceRecipes.smeltItem (var0); if (result != -1) return result;
+
+        [...]
+    }
+```
+
+And have this `ModFurnaceRecipes` class:
+```java
+    package com.mojontwins.modloader;
+
+    import java.util.ArrayList;
+    import java.util.List;
+
+    public class ModFurnaceRecipes {
+        public static List<ModSmeltingRecipe> recipes;
+        
+        static {
+            recipes = new ArrayList<ModSmeltingRecipe> ();
+        }
+        
+        public ModFurnaceRecipes() {
+        }
+
+        public static void addSmeltingRecipe (int input, int output) {
+            recipes.add(new ModSmeltingRecipe(input, output));
+        }
+        
+        public static int smeltItem (int input) {
+            for (int i = 0; i < recipes.size (); i ++) {
+                ModSmeltingRecipe recipe = (ModSmeltingRecipe) recipes.get(i);
+                if (recipe.input == input) return recipe.output;
+            }
+            
+            return -1;
+        }
+    }
+```
+
+Which needs this `ModSmeltingRecipe` class:
+
+```java
+    package com.mojontwins.modloader;
+
+    public class ModSmeltingRecipe {
+        public int input;
+        public int output;
+        
+        public ModSmeltingRecipe(int input, int output) {
+            this.input = input; this.output = output;
+        }
+    }
+```
+
+Add the `addSmelting` method to `ModLoader`
+
+```java
+    public static void addSmelting (int input, int output) {
+        ModFurnaceRecipes.addSmeltingRecipe(input, output);
+    }
+```
+
+And so we can add the new recipe to `mod_Example`:
+
+```java
+    ModLoader.addSmelting(Block.cobblestone.blockID, Block.stone.blockID);
+```
+
+## Another small hook
+
+I'm adding another hook which is ran when the game is about to start so we can give the player some cobblestone to test our stuff quickly.
+
+`ModLoader`:
+
+```java
+    // This one runs right before the game starts
+    public static void hookGameStart (Minecraft minecraft) {
+        for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+            ((BaseMod)iterator.next()).hookGameStart(minecraft);
+        }
+    }
+```
+
+`BaseMod`:
+
+```java
+    public void hookGameStart (Minecraft minecraft) {       
+    }
+```
+
+`mod_Example`:
+
+```java
+    public void hookGameStart (Minecraft minecraft) {
+        minecraft.thePlayer.inventory.setInventorySlotContents(0, new ItemStack(Block.stoneOvenIdle, 1));
+        minecraft.thePlayer.inventory.setInventorySlotContents(1, new ItemStack(Block.workbench, 1));
+        minecraft.thePlayer.inventory.setInventorySlotContents(2, new ItemStack(Item.coal, 64));
+        minecraft.thePlayer.inventory.setInventorySlotContents(3, new ItemStack(Block.cobblestone, 64));
+    }
+```
+
+And the hook goes right after the level has been created and set up in `Minecraft`, at the end of the `generateLevel` method:
+
+```java
+    ModLoader.hookGameStart(this);
+```
+
+That way we can quickly create an oven and a crafting table, smelt some cobblestone, and craft our stone bricks! And yes, it works like a charm!

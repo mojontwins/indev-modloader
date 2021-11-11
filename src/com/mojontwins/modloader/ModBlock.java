@@ -4,6 +4,7 @@ import net.minecraft.game.block.Block;
 import net.minecraft.game.block.Material;
 
 public class ModBlock extends Block {
+	public String name;
 
 	protected ModBlock(int id, Material material) {
 		super(id, material);
@@ -33,6 +34,11 @@ public class ModBlock extends Block {
     
     public void setBlockTickOnLoad(boolean var1) {
         tickOnLoad[this.blockID] = var1;
+    }
+    
+    public ModBlock setName(String name) {
+    	this.name = name;
+    	return this;
     }
 
     public void setBounds(float var1, float var2, float var3, float var4, float var5, float var6) {
