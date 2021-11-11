@@ -17,14 +17,15 @@ As you will notice, English is not my first language. That's why I'm using githu
 This is the roadmap which will be constantly changing.
 
 * Create a basic ModBase class and make the system to automaticly run mod_Name classes.
-* Use your mod class to add blocks.
-* Use your mod class to add items.
-* Use your mod class to add recipes of any kind.
-* Use your mod class to add food.
-* Use your mod class to add tile entities.
-* Use your mod class to add entities.
-* Use your mod class to add new kind of terrain generation.
-* Use your mod class to add structures.
+* [x] Basic ModBase class and mod_XXX importing.
+* [x] Use your mod class to add blocks.
+* [ ] Use your mod class to add items.
+* [x] Use your mod class to add recipes of any kind.
+* [ ] Use your mod class to add food.
+* [ ] Use your mod class to add tile entities.
+* [ ] Use your mod class to add entities.
+* [ ] Use your mod class to add new kind of terrain generation.
+* [ ] Use your mod class to add structures.
 
 # 1. Creating a basic ModBase class
 
@@ -918,3 +919,87 @@ And the hook goes right after the level has been created and set up in `Minecraf
 ```
 
 That way we can quickly create an oven and a crafting table, smelt some cobblestone, and craft our stone bricks! And yes, it works like a charm!
+
+# Items
+
+The main problem with items is that this version of Minecraft only supports `TextureFX`s for the `terrain.png` atlas, and not for `icons/items.png`. So against my will I've modified once again the bases classes, this time half-porting 1.2.5's version of the `TextureFX` class and the `updateDynamicTextures` method in `RenderEngine`:
+
+```java
+    package net.minecraft.client.renderer.block;
+
+    import org.lwjgl.opengl.GL11;
+
+    import net.minecraft.client.renderer.RenderEngine;
+
+    public class TextureFX {
+        public byte[] imageData;
+        public int iconIndex;
+        public boolean anaglyphEnabled;
+        public int textureId;
+        public int tileImage;
+
+        public TextureFX(int var1) {
+            imageData = new byte[1024];
+            anaglyphEnabled = false;
+            textureId = 0;
+            tileImage = 0;
+            iconIndex = var1;
+        }
+
+        public void onTick() {
+        }
+        
+        public void bindImage (RenderEngine renderEngine) {
+            if (tileImage == 0) {
+                GL11.glBindTexture(GL11.GL_TEXTURE_2D, renderEngine.getTexture("/terrain.png"));
+            } else {
+                GL11.glBindTexture(GL11.GL_TEXTURE_2D, renderEngine.getTexture("/gui/items.png"));
+            }
+        }
+    }
+```
+
+```java
+    public final void updateDynamicTextures() {
+        // This method has been modified to allow for TextureFX in both atlases (originally just `terrain.png`)
+        
+        int i = -1;
+        
+        for(int var1 = 0; var1 < this.textureList.size(); ++var1) {
+            TextureFX textureFX = (TextureFX)this.textureList.get(var1);
+            textureFX.anaglyphEnabled = this.options.anaglyph;
+            textureFX.onTick();
+            this.imageData.clear();
+            this.imageData.put(textureFX.imageData);
+            this.imageData.position(0).limit(textureFX.imageData.length);
+            
+            if (textureFX.iconIndex != i) {
+                textureFX.bindImage (this);
+                i = textureFX.iconIndex;
+            }
+            
+            GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0, textureFX.iconIndex % 16 << 4, textureFX.iconIndex / 16 << 4, 16, 16, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, this.imageData);
+        }
+
+        // I dunno what's this for but I will just leave it here...
+        
+        for(int var1 = 0; var1 < this.textureList.size(); ++var1) {
+            TextureFX textureFX; 
+            if ((textureFX = (TextureFX)this.textureList.get(var1)).textureId > 0) {
+                this.imageData.clear();
+                this.imageData.put(textureFX.imageData);
+                this.imageData.position(0).limit(textureFX.imageData.length);
+                GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureFX.textureId);
+                GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0, 0, 0, 16, 16,  GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, this.imageData);
+            }
+        }
+    }
+```
+
+And change `ModTextureStatic` to properly give `TextureFX`'s `iconIndex` a value:
+
+```java
+    textureId = textureAtlas == EnumTextureAtlases.ITEMS ? 1 : 0;
+```
+
+Run and it still works, so we're fine for the moment.
