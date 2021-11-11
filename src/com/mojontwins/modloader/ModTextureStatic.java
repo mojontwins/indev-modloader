@@ -7,6 +7,7 @@ import net.minecraft.client.renderer.block.TextureFX;
 public class ModTextureStatic extends TextureFX {
 	public ModTextureStatic(int textureIndex, EnumTextureAtlases textureAtlas, BufferedImage bufferedImage) {
 		super(textureIndex);
+		textureId = textureAtlas == EnumTextureAtlases.ITEMS ? 1 : 0;
 		
 		// Load the texture to the `imagedata` array
 		int pixels [] = new int [256];
