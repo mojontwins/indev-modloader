@@ -203,7 +203,7 @@ public class ModLoader {
      */
     
     public static int getItemId () throws Exception {
-    	if (currentFreeItemId < 256)
+    	if (currentFreeItemId < 1024)
     		return currentFreeItemId ++;
     	else throw new Exception ("No more free item IDs.");
     }
@@ -491,6 +491,15 @@ public class ModLoader {
         	((BaseMod)iterator.next()).hookGameStart(minecraft);
         }
 	}
+    
+    // Called when block has been harvested
+    public static boolean hookOnBlockHarvested (Minecraft minecraft, World world, int x, int y, int z, int blockID, int metadata) {
+    	boolean res = false;
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+        	res = res || ((BaseMod)iterator.next()).hookOnBlockHarvested(minecraft, world, x, y, z, blockID, metadata);
+        }
+    	return res;
+    }
     
     /*
      * Recipes & Smelting

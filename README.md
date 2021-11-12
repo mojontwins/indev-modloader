@@ -8,6 +8,8 @@ This document and repository will contain my efforts in creating a modloader for
 
 **This ModLoader is based in Risugami's original ModLoader**, but it's not a *direct* port - albeit some methods are basicly the same.
 
+My goal is keeping base class edit to the bare minimum. I'll be modifying Indev to make it more externally configurable. 
+
 I'm using [MCP-LTS](https://github.com/ModificationStation/1.7.3-LTS) to decompile and modify Minecraft Indev 20100223, so big thanks to all developers and contributors.
 
 As you will notice, English is not my first language. That's why I'm using github to write the docs. Pull requests to fix my crappy writing are welcome!
@@ -1113,6 +1115,15 @@ Everything else should work alrighty. Now let's see how we could create our own 
     }
 ```
 
+Note that you still can override the methods that are called when you left or right click when the item is selected:
+
+```java
+    boolean onItemUse (ItemStack itemStack, World world, int x, int y, int z, int blockIDhit);
+    boolean onItemRightClick (ItemStack itemStack, World, world, EntityPlayer entityPlayer);
+```
+
+If you redefine those just return true on success so the default action is not performed.
+
 Let's create a simple, useless and stupid item: a pebble. Using 9 pebbles you get a block of cobblestone (so we can test if everything works together). We are not even creating a custom class for it. In our `mod_Example`, we first create a new attribute for it:
 
 ```java
@@ -1122,7 +1133,7 @@ Let's create a simple, useless and stupid item: a pebble. Using 9 pebbles you ge
 Then create the object in `load` and assign a texture:
 
 ```java
-    itemPebble = new ModItem(ModLoader.getItemId()).setMaxStackSize(1);
+    itemPebble = new ModItem(ModLoader.getItemId()).setMaxStackSize(64).setName("item.pebble");
     itemPebble.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_pebble.png"));
 ```
 
@@ -1142,3 +1153,349 @@ Let's give us some useless pebbles so we can test:
 ```
 
 And it works! Just put the new ugly pebbles in the crafting table to make cobblestone!
+
+## New tools
+
+Tools are based on a material and a type. Upon those parameters, they can be used more or less effectively in the world & entities. As Indev is hardcodedfest, I'm expecting nasty stuff ahead. Let's examine how it's done and think about how can be expand on that in an easy way. Maybe we can also add special stuff like silk touch to golden tools? I love that feature in NSSS. But let's not get our hopes very high...
+
+The classes `ItemAxe`, `ItemPickaxe` and `ItemSpade` all extend the base `ItemTool` class - *note how `ItemSword` and `ItemHoe` don't* - So let's start poking at that. This is the constructor:
+
+```java
+    public ItemTool(int var1, int var2, int var3, Block[] var4)
+```
+
+Where
+    * `var1` is the ID (get's passed on to `super` which is `Item`).
+    * `var2` seems to be a base damage value when hitting entities. Get's added to `var3` to make `damageVsEntity`.
+    * `var3` seems to be the hardness, and is usually 0 for wood, 1 for rock, 2 for steel and 3 for diamond. It's used to calculate `maxDamage` or how many times you can use the tool ?
+    * `var4` is an array of blocks which gets copied to `blocksEffectiveAgainst`.
+
+`blocksEffectiveAgainst` is a list of blocks the tool is good at breaking. If the block being hit is in the list, the strength applied is `(var3 + 1) * 2`, this is, 2.0F for wood, 4.0F for stone, 6.0F for steel and 8.0F for diamond. It it's not, the strength is 1.0F.
+
+Hmmm - this seems way more hackeable than what I know: in 1.2.5 there's a Enum to contains all the values which can't be easily modified programatically. All methods are marked `final` which just sucks and *I'm removing that so we can customize everything!*
+
+Let's look at the actual tools which extend `ItemTool`:
+
+### `ItemPickAxe`
+
+The constructor has three parameters equivalent to the above `var1`, `var3` and `var4`. `var2` is set to `2`, so `damageVsEntity` happens to be `2 + var3`. The class has its own attribute `harvestLevel` which is also set to the value of `var3` (the 2nd parameter in the `ItemPickAxe` constructor) which is later used to calculate if the tool can harvest certain ores.
+
+Sadly, the method `canHarvestBlock` is marked `final` which is just plain shyte. If I want to make my own tools, it would be great to be able to redefine this method. *So I'm removing the `final` modifier here as well*. Sorry but not sorry.
+
+Finally, `blocksEffectiveAgainst` is set to everything rocky or stoney in the game.
+
+Now we can extend `ItemPickAxe` to create our own pickaxes.
+
+### `ItemAxe`
+
+This one is much simpler. It sets `ItemTool`'s constructor `var2` to 3 so `damageVsEntity` is `3 + var3` - Axes are stronger than Pickaxes against mobs. Appart from that, `blocksEffectiveAgainst` contains everything that's made of wood.
+
+### `ItemSpade`
+
+Same as `ItemAxe`, but with `var2` set to 1 and affective agains grass, sand, dirt and gravel.
+
+### `ItemSword`
+
+As mentioned, is not considered a tool, at least in the class hyerarchy. And the reason why is "because", as it could have been implemented as a `ItemTool`. Maybe there's a obscure reason I can't understand. Maybe it's because `ItemTool` methods are `final`.  `ItemSword`'s are also `final`. *I'm removing all `final`s!*.
+
+Swords just take two parameters: the ID and a `var2` parameter which is used for `maxDamage` (`32 << var2`) and `weaponDamage` (4 + (var2 << 1)). `weaponDamage` is used as a returning value for `getDamageVsEntity`, so the sword causes a damage of 6, 8, 10 or 12 depending on its material.
+
+### `ItemHoe`
+
+Hoes have code to plow land - that is, they override `onItemUse`.
+
+### Creating new tools with ModLoader
+
+So after I've removed all those `final`s we may be talking. Let's try and create a couple of steel tools: a steel pickaxe and a steel sword. We'll be using new classes which will extend base classes. We'll set all the custom values there. We'll also add the `name` attribute and the `setName` method for or future registry thing.
+
+Tool duration and tool strength are very crudely configured from the constructor, so we will be overriding the values explictly by redefining some methods. Let's begin with our steel pickaxe.
+
+I want the new steel pickaxe to be as strong as the iron pickaxe but 1.5 times as durable, and let's say 1.5 times faster too. Remember that the `ItemPickaxe` constructor can be expressed as:
+
+```java
+    ItemPickaxe (int itemID, int hardness);
+```
+
+and that `hardness` is 0 for wood and gold, 1 for stone, 2 for iron and 3 for diamond and is used to calculate several things:
+
+* `harvestLevel`, the same value.
+* `maxDamage`, equals `32 << hardness`, tool duration.
+* `efficiencyOnProperMaterial` is `(hardness + 1) * 2`.
+* `damageVsEntity` which is `2 + hardness` for pickaxes.
+
+So we can extend from `ItemPickaxe`, call the `super` constructor with hardness = 2 (which means `iron`), and then recalculate `maxDamage` and `efficiencyOnProperMaterial`. 
+
+* `maxDamage` for iron would be `32 << 2` = 256. 1.5 times more durable would be 384.
+* `efficiencyOnProperMaterial` is `(2 + 1) * 2` = 6.0F, 1.5 times as fast would be 9.0F.
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.item.ItemPickaxe;
+
+    public class ItemSteelPickaxe extends ItemPickaxe {
+        public String name;
+        
+        public ItemSteelPickaxe(int itemID) {
+            super (itemID, 2);
+            maxDamage = 384;
+            efficiencyOnProperMaterial = 9.0F;
+            maxStackSize = 1;
+        }
+        
+        public ItemSteelPickaxe setName(String name) {
+            this.name = name;
+            return this;
+        }   
+    }
+```
+
+Our new steel sword should be 1.5 as durable as an iron sword and also 1.5 times more powerful. The `ItemSword` constructor can be expressed as
+
+```java
+    ItemSword (int itemID, int hardness);
+```
+
+Again, `hardness` is 0 for wood and gold, 1 for stone, 2 for iron and 3 for diamond and is used to calculate several things:
+
+* `maxDamage` is `32 << hardness`, tool duration.
+* `weaponDamage` is `4 + hardness * 2` (integer value).
+
+That way we can extend from `ItemSword`, call the `super` constructor with hardness = 2 (in fact this doesn't matter in this case as we'll be overwriting everything!) and then recalculate `maxDamage` and `weaponDamage`:
+
+* `maxDamage` for iron would be `32 << 2` = 256. 1.5 times more durable would be 384.
+* `weaponDamage` would be `4 + 2 * 2` = 8. 1.5 times is 12.
+
+```java 
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.item.ItemSword;
+
+    public class ItemSteelSword extends ItemSword {
+        public String name;
+        
+        public ItemSteelSword(int itemID) {
+            super (itemID, 2);
+            maxDamage = 384;
+            weaponDamage = 12;
+            maxStackSize = 1;
+        }
+        
+        public ItemSteelSword setName(String name) {
+            this.name = name;
+            return this;
+        }   
+    }
+```
+
+Now add the items to mod_Example:
+
+```java
+    public static ItemSword itemSteelSword;
+    public static ItemPickaxe itemSteelPickaxe;
+```
+
+```java
+    itemSteelSword = new ItemSteelSword(ModLoader.getItemId()).setName("item.steel_sword");
+    itemSteelSword.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_sword.png"));
+    
+    itemSteelPickaxe = new ItemSteelPickaxe(ModLoader.getItemId()).setName("item.steel_pickaxe");;
+    itemSteelPickaxe.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_pickaxe.png"));
+```
+
+Give one of each to test
+
+```java
+    minecraft.thePlayer.inventory.setInventorySlotContents(5, new ItemStack(itemSteelSword, 1));
+    minecraft.thePlayer.inventory.setInventorySlotContents(6, new ItemStack(itemSteelPickaxe, 1));
+```
+
+To make things more fun let's create a new Item: "Steel Ingot", and a smelting recipe in which you can smelt iron ingots to get steel ingots:
+
+```java
+    public static ModItem itemSteelIngot;
+```
+
+```java
+    itemSteelIngot = new ModItem(ModLoader.getItemId()).setName("item.steel_ingot");
+    itemSteelIngot.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_ingot.png"));
+```
+
+```java
+    ModLoader.addSmelting(Item.ingotIron.shiftedIndex, itemSteelIngot.shiftedIndex);
+```
+
+And two crafting recipes to create the steel sword and the steel pickaxe:
+
+```java
+    ModLoader.addRecipe(new ItemStack(itemSteelSword,1), new Object [] {
+        " # ", " # ", " X ",
+        '#', itemSteelIngot,
+        'X', Item.stick
+    });
+
+    ModLoader.addRecipe(new ItemStack(itemSteelPickaxe,1), new Object [] {
+        "###", " X ", " X ",
+        '#', itemSteelIngot,
+        'X', Item.stick
+    });
+```
+
+All I did in this section is writing a tutorial and modifying base classes. But I also tested everything (so far) is fairly robust.
+
+### Silk touch tools?
+
+Just for fun, I'm just intrigued to know if one could add stuff like this to items in this slightly modified Indev just by playing around with method overriding. The goal for this game: manage to subtitute the useless golden pickaxe for a silk touch pickaxe which just breaks the block but returns the original block untouched.
+
+This is how Indev works:
+
+* When you use your tool on a block and you break it, `PlayerControllerSP.sendBlockRemoved (int x, int y, int z)` is called.
+* There, the block previously on (x, y, z) is retrieved and its `onBlockDestroyedByPlayer` is called, which does nothing except for blocks of class `BlockCrops`, `BlockFire` and `BlockTNT`.
+* If the player has an item on its hand, such item's `onBlockDestroyed` method is called. This method actually damages tools and swords.
+* If the call to `thePlayer.canHarvestBlock` returns true, the block's `dropBlockAsItem` is called.
+
+`theplayer.canHarvestBlock` works as follows:
+
+* If the block's material is not metal nor rock, it returns true. The block can always be harvested.
+* If it is metal or rock, the held item's `canHarvestBlock` is called and its return value returned.
+
+The `canHarvestBlock` from Items returns false, but is redefined by `ItemPickAxe` as we have seen.
+
+SO
+
+In our new golden pickaxe, first of all, `canHarvestBlock` should always return true. Then we would need to modify `PlayerControllerSP.sendBlockRemoved`, for example by adding a new hook.
+
+This hool to `ModLoader`:
+
+```java
+    // Called when block has been harvested
+    public static boolean hookOnBlockHarvested (Minecraft minecraft, World world, int x, int y, int z, int blockID, int metadata) {
+        boolean res = false;
+        for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+            res = res || ((BaseMod)iterator.next()).hookOnBlockHarvested(minecraft, world, x, y, z, blockID, metadata);
+        }
+        return res;
+    }
+```
+
+`BaseMod`:
+
+```java
+    public boolean hookOnBlockHarvested (Minecraft minecraft, World world, int x, int y, int z, int blockID, int metadata) {
+        return false;
+    }    
+```
+
+And the modification to `PlayerControllerSP.sendBlockRemoved`:
+
+```java
+    if (var6 && this.mc.thePlayer.canHarvestBlock(Block.blocksList[var4])) {
+        if (ModLoader.hookOnBlockHarvested (this.mc, this.mc.theWorld, var1, var2, var3, var4, var5) == false)  // This line
+            Block.blocksList[var4].dropBlockAsItem(this.mc.theWorld, var1, var2, var3, var5);
+    }
+```
+
+This is just the infrastructure. Now we have to:
+
+* Create a class for our custom golden pickaxe.
+* Hack into the main items list to *replace* the normal pickaxe with ours.
+* Override `BaseMod`'s `hookOnBlockHarvested` to spawn the same block ID that's been destroyed. We'll copy some code from `Block.dropBlockAsItemWithChance`.
+
+So this is our custom golden pickaxe:
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.item.ItemPickaxe;
+
+    public class ItemSilkTouchGoldenPickaxe extends ItemPickaxe {
+        public String name;
+
+        public ItemSilkTouchGoldenPickaxe(int itemID) {     
+            super(itemID, 1);
+            
+            // Make it faster than stone
+            efficiencyOnProperMaterial = 9.0F;
+            
+            // Only can stack 1 per slot
+            maxStackSize = 1;
+        }
+
+        // Override canHarvestBlock so we can harvest anything
+        public boolean canHarvestBlock (Block var1) {
+            return true;
+        }
+        
+        // Override getStrVsBlock so it's always as efficient
+        public float getStrVsBlock(Block var1) {
+            return efficiencyOnProperMaterial;
+        }
+        
+        public ItemSilkTouchGoldenPickaxe setName(String name) {
+            this.name = name;
+            return this;
+        }   
+    }
+```
+
+Let's define and instantiate it in our `mod_Example` class...
+
+```java
+    public static ItemPickaxe itemSilkTouchGoldenPickaxe;
+```
+
+```java
+    itemSilkTouchGoldenPickaxe = new ItemSilkTouchGoldenPickaxe(ModLoader.getItemId()).setName("item.silk_touch_golden_pickaxe");
+    itemSilkTouchGoldenPickaxe.setIconIndex(Item.pickaxeGold.getIconIndex());
+```
+
+Note how we are reusing the original golden pickaxe texture. And now there comes the hacky part:
+
+```java
+    // Substitute the original golden pickaxe:
+    Item.pickaxeGold = itemSilkTouchGoldenPickaxe;
+    Item.itemsList[Item.pickaxeGold.shiftedIndex] = itemSilkTouchGoldenPickaxe;
+```
+
+Now we'll add the actual hook code. For a first test we add this simple stub:
+
+```java
+    public boolean hookOnBlockHarvested (Minecraft minecraft, World world, int x, int y, int z, int blockID, int metadata) {
+        System.out.println ("BIMMM!");
+        return true;
+    }   
+```
+
+Everytime you break a block it will be logged in the console, but nothing else will happen (well, the block is broken, but nothing spawns)
+
+Now we give ourselves a golden pickaxe and test:
+
+```java
+    minecraft.thePlayer.inventory.setInventorySlotContents(7, new ItemStack(Item.pickaxeGold, 1));
+```
+
+It works, so let's do something in `hookOnBlockHarvested`: We detect if the tool used is the golden pickaxe and, if so, we spawn a new block item with the same blockID and return true; otherwise we return false and let the engine do its thing:
+
+```java
+    public boolean hookOnBlockHarvested (Minecraft minecraft, World world, int x, int y, int z, int blockID, int metadata) {
+        ItemStack curItem = minecraft.thePlayer.inventory.getCurrentItem();
+        if (curItem != null) {
+            if (curItem.itemID == Item.pickaxeGold.shiftedIndex) {
+                
+                // This code is lifted from `Block.dropBlockAsItemWithChance`
+                float px = world.random.nextFloat() * 0.7F + 0.15F;
+                float py = world.random.nextFloat() * 0.7F + 0.15F;
+                float pz = world.random.nextFloat() * 0.7F + 0.15F;
+                EntityItem entityItem = new EntityItem(world, (float)x + px, (float)y + py, (float)z + pz, new ItemStack(blockID));
+                entityItem.delayBeforeCanPickup = 10;
+                world.spawnEntityInWorld(entityItem);
+                
+                return true;
+            }
+        }
+        
+        return false;
+    }   
+```
+

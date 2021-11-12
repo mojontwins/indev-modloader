@@ -15,4 +15,8 @@ abstract class BaseMod {
 	
 	public void hookGameStart (Minecraft minecraft) {		
 	}
+	
+	public boolean hookOnBlockHarvested (Minecraft minecraft, World world, int x, int y, int z, int blockID, int metadata) {
+		return false;
+	}
 }
