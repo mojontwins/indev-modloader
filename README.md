@@ -1,6 +1,6 @@
 # indev-modloader
 
-A modloader for Minecraft indev 20100223
+A modloader for Minecraft Indev 20100223
 
 # What's this
 
@@ -10,7 +10,9 @@ This document and repository will contain my efforts in creating a modloader for
 
 My goal is keeping base class edit to the bare minimum. I'll be modifying Indev to make it more externally configurable. 
 
-I'm using [MCP-LTS](https://github.com/ModificationStation/1.7.3-LTS) to decompile and modify Minecraft Indev 20100223, so big thanks to all developers and contributors.
+I'm using [Retro MCP](https://github.com/MCPHackers/RetroMCP) to decompile and modify Minecraft Indev 20100223, so big thanks to all developers and contributors.
+
+!(https://repository-images.githubusercontent.com/417943142/cac3478c-1e9c-4987-98e2-a0223d6b8988)
 
 As you will notice, English is not my first language. That's why I'm using github to write the docs. Pull requests to fix my crappy writing are welcome!
 
