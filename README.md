@@ -186,7 +186,7 @@ First think I want to do is creating a system to get dynamic block IDs, as I don
 
 Looking at the base `Block.java` it seems that blocks 1-63 are in use. That makes my life easier, as I just have to provide blockIDs from 64 onwards. Next task is checking which texture atlas indexes are in use and create a bitmap like the original Modloader uses, and then provide new indexes based on which indexes are free.
 
-A first examination to `terrain.png` yields there apparently free texture indexes:
+A first examination to `terrain.png` yields these apparently free texture indexes:
 
 47, 51, 53, 81, 82, 84, 85, 96, 97, 98, 101-239, 250-255. 
 
@@ -222,17 +222,14 @@ Now I need a method to retrieve the first terrain texture index available:
      * Retrieves the first unused texture index
      */
     public static int getFreeTerrainTextureIndex () {
-        int res = -1;
-        
-        for (int i = currentTerrainTextureIndex; i < 256; i ++) {
-            if (terrainTextureIndexes [i] == 0) {
-                res = i;
-                terrainTextureIndexes [i] = 1;
-                break;
+        for (; currentTerrainTextureIndex < 256; currentTerrainTextureIndex ++) {
+            if (terrainTextureIndexes [currentTerrainTextureIndex] == 0) {              
+                terrainTextureIndexes [currentTerrainTextureIndex] = 1;
+                return currentTerrainTextureIndex ++;
             }
         }
         
-        return res;
+        return -1;
     }
 ```
 
@@ -501,12 +498,25 @@ And the new ModLoader method
 
 ```java
     public static void registerAllTextureOverrides (RenderEngine renderEngine) throws Exception {
-        for (Iterator<HashMap<String, Object>> iterator = overrides.iterator(); iterator.hasNext();) {
-            HashMap<String, Object> thisEntry = iterator.next ();
-            String textureURI = thisEntry.get("textureURI");
-            BufferedImage bufferedimage = loadImage(renderEngine, textureURI);
-            ModTextureStatic modTextureStatic = new ModTextureStatic (textureIndex, textureAtlas, bufferedImage);
-            renderEngine.registerTextureFX(modTextureStatic);
+        try {
+            for (Iterator<HashMap<String, Object>> iterator = overrides.iterator(); iterator.hasNext();) {
+                Map<String, Object> thisEntry = iterator.next ();
+                
+                String textureURI = (String) thisEntry.get("textureURI");
+                int textureIndex = (Integer) thisEntry.get("textureIndex");
+                EnumTextureAtlases textureAtlas = (EnumTextureAtlases) thisEntry.get("textureAtlas");
+                
+                System.out.println ("Creating ModTextureStatic for texture " + textureIndex + " in " + textureAtlas + " from " + textureURI);
+                
+                BufferedImage bufferedImage = loadImage(renderEngine, textureURI);
+                
+                ModTextureStatic modTextureStatic = new ModTextureStatic (textureIndex, textureAtlas, bufferedImage);
+                renderEngine.registerTextureFX(modTextureStatic);
+            }
+        } catch (Exception e) {
+            System.out.println ("Exception @ registerAllTextureOverrides" + e);
+            e.printStackTrace();
+            throw e;
         }
     }
 ```
@@ -999,7 +1009,136 @@ The main problem with items is that this version of Minecraft only supports `Tex
 And change `ModTextureStatic` to properly give `TextureFX`'s `iconIndex` a value:
 
 ```java
-    textureId = textureAtlas == EnumTextureAtlases.ITEMS ? 1 : 0;
+    tileImage = textureAtlas == EnumTextureAtlases.ITEMS ? 1 : 0;
 ```
 
 Run and it still works, so we're fine for the moment.
+
+So let's get on to it. First of all we have to create the array to serve free texture Ids for items. Looking at `/gui/items.png` we get this:
+
+```java
+    // A map for free / used item texture indexes
+    private static final int [] itemTextureIndexes = new int [] {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    };
+    
+    // indexes the previous array
+    public static int currentItemTextureIndex;
+```
+
+About item IDs, let's take a glance at the base `Item` class to design our sequencer. Let's remember that I plan to add a registry to store this kind of stuff in the world files so everything can be setup automaticly if needed, and also that you don't need to use the sequencers at all if you don't fancy them.
+
+In this version, Item id's (not shifted indexes, those add 256 to the value for items) are sequentially used from 0 to 65 inclusive, so we make yet another stupid sequencer which can / should be replaced for some proper thing, as in blocks. But I will leave that for the future. So be it:
+
+```java
+    public static int getFreeItemTextureIndex () {
+        for (; currentItemTextureIndex < 256; currentItemTextureIndex ++) {
+            if (itemTextureIndexes [currentItemTextureIndex] == 0) {                
+                itemTextureIndexes [currentItemTextureIndex] = 1;
+                return currentItemTextureIndex ++;
+            }
+        }
+        
+        return -1;
+    }   
+
+    public static int getBlockId () throws Exception {
+        if (currentFreeBlockId < 256)
+            return currentFreeBlockId ++;
+        else throw new Exception ("No more free item IDs.");
+    }
+```
+
+So the next step is setting up the texture overriding process by completing our `addOverride` method:
+
+```java
+    public static int addOverride (EnumTextureAtlases textureAtlas, String textureURI) {
+        int textureIndex; 
+        
+        if (textureAtlas == EnumTextureAtlases.TERRAIN) {
+            textureIndex = getFreeTerrainTextureIndex ();
+        } else {
+            textureIndex = getFreeItemTextureIndex ();
+        }
+        
+        Boolean success = addOverride (textureAtlas, textureURI, textureIndex);
+        
+        return success ? textureIndex : -1;
+    }
+```
+
+Everything else should work alrighty. Now let's see how we could create our own items. As methods are public we can just inherit directly from Item... *but* planning ahead, I'll need item names for my future registry system. So let's add a `ModItem` class which extends `Item` to store what we need - and we'll then use `ModItem` to base our custom items.
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.item.Item;
+
+    public class ModItem extends Item {
+        public String name;
+
+        public ModItem(int var1) {
+            super(var1);
+        }
+        
+        public ModItem setMaxStackSize(int var1) {
+            maxStackSize = var1;
+            return this;
+        }
+        
+        public ModItem setMaxDamage(int var1) {
+            maxDamage = var1;
+            return this;
+        }
+        
+        public ModItem setName(String name) {
+            this.name = name;
+            return this;
+        }
+    }
+```
+
+Let's create a simple, useless and stupid item: a pebble. Using 9 pebbles you get a block of cobblestone (so we can test if everything works together). We are not even creating a custom class for it. In our `mod_Example`, we first create a new attribute for it:
+
+```java
+    public static ModItem itemPebble;
+```
+
+Then create the object in `load` and assign a texture:
+
+```java
+    itemPebble = new ModItem(ModLoader.getItemId()).setMaxStackSize(1);
+    itemPebble.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_pebble.png"));
+```
+
+Now add the crafting recipe:
+
+```java
+    ModLoader.addRecipe(new ItemStack(Block.cobblestone, 1), new Object [] {
+        "XXX", "XXX", "XXX",
+        'X', itemPebble
+    });
+```
+
+Let's give us some useless pebbles so we can test:
+
+```java
+    minecraft.thePlayer.inventory.setInventorySlotContents(4, new ItemStack(itemPebble, 64));
+```
+
+And it works! Just put the new ugly pebbles in the crafting table to make cobblestone!

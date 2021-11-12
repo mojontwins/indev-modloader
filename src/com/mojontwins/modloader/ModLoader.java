@@ -31,7 +31,6 @@ import net.minecraft.game.item.ItemBlock;
 import net.minecraft.game.item.ItemStack;
 import net.minecraft.game.level.World;
 import net.minecraft.game.level.generator.LevelGenerator;
-import net.minecraft.game.recipe.CraftingManager;
 
 public class ModLoader {
 	public static boolean isInitialized;
@@ -62,6 +61,32 @@ public class ModLoader {
 	
 	// Used to get free block IDs when adding new blocks
 	public static int currentFreeBlockId = 64;
+	
+	// A map for free / used item texture indexes
+	private static final int [] itemTextureIndexes = new int [] {
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,
+		1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0,
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,
+		1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+		1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
+		1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
+		1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+	};
+	
+	// indexes the previous array
+	public static int currentItemTextureIndex;
+
+	// Used to get free item IDs when adding new blocks
+	public static int currentFreeItemId = 66;
 	
 	// Store here the texture overrides
 	public static List<HashMap<String,Object>> overrides;
@@ -137,21 +162,32 @@ public class ModLoader {
 	}
 	
 	/*
-	 * Retrieves the first unused texture index
+	 * Retrieves the first unused texture index for blocks
 	 */
 	public static int getFreeTerrainTextureIndex () {
-		int res = -1;
-		
-		for (int i = currentTerrainTextureIndex; i < 256; i ++) {
-			if (terrainTextureIndexes [i] == 0) {
-				res = i;
-				terrainTextureIndexes [i] = 1;
-				break;
+		for (; currentTerrainTextureIndex < 256; currentTerrainTextureIndex ++) {
+			if (terrainTextureIndexes [currentTerrainTextureIndex] == 0) {				
+				terrainTextureIndexes [currentTerrainTextureIndex] = 1;
+				return currentTerrainTextureIndex ++;
 			}
 		}
 		
-		return res;
+		return -1;
 	}
+	
+	/* 
+	 * Retrieves the first unused texture index for items
+	 */
+	public static int getFreeItemTextureIndex () {
+		for (; currentItemTextureIndex < 256; currentItemTextureIndex ++) {
+			if (itemTextureIndexes [currentItemTextureIndex] == 0) {				
+				itemTextureIndexes [currentItemTextureIndex] = 1;
+				return currentItemTextureIndex ++;
+			}
+		}
+		
+		return -1;
+	}		
 	
 	/*
 	 * Retrieves the next free block ID
@@ -159,7 +195,17 @@ public class ModLoader {
     public static int getBlockId () throws Exception {
         if (currentFreeBlockId < 256)
             return currentFreeBlockId ++;
-        else throw new Exception ("No more free block IDs.");
+        else throw new Exception ("No more free item IDs.");
+    }
+    
+    /*
+     * Retrieves the next free item ID
+     */
+    
+    public static int getItemId () throws Exception {
+    	if (currentFreeItemId < 256)
+    		return currentFreeItemId ++;
+    	else throw new Exception ("No more free item IDs.");
     }
     
     /*
@@ -179,8 +225,7 @@ public class ModLoader {
 		if (textureAtlas == EnumTextureAtlases.TERRAIN) {
 			textureIndex = getFreeTerrainTextureIndex ();
 		} else {
-			// TODO
-			textureIndex = -1;
+			textureIndex = getFreeItemTextureIndex ();
 		}
 		
 		Boolean success = addOverride (textureAtlas, textureURI, textureIndex);
@@ -212,9 +257,9 @@ public class ModLoader {
 				
 				String textureURI = (String) thisEntry.get("textureURI");
 				int textureIndex = (Integer) thisEntry.get("textureIndex");
-				EnumTextureAtlases textureAtlas = (EnumTextureAtlases) thisEntry.get("textureAlias");
+				EnumTextureAtlases textureAtlas = (EnumTextureAtlases) thisEntry.get("textureAtlas");
 				
-				System.out.println ("Creating ModTextureStatic for texture " + textureIndex + " from " + textureURI);
+				System.out.println ("Creating ModTextureStatic for texture " + textureIndex + " in " + textureAtlas + " from " + textureURI);
 				
 				BufferedImage bufferedImage = loadImage(renderEngine, textureURI);
 				

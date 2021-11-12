@@ -139,7 +139,7 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/renderer/RenderEngin
      public final void refreshTextures() {
 diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/renderer/block/TextureFX.java" "MCP-LTS\\src/minecraft/net/minecraft/client/renderer/block/TextureFX.java"
 --- "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/renderer/block/TextureFX.java"	2021-11-10 11:11:52.139315500 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/client/renderer/block/TextureFX.java"	2021-11-11 22:34:30.986080500 +0100
++++ "MCP-LTS\\src/minecraft/net/minecraft/client/renderer/block/TextureFX.java"	2021-11-12 09:24:08.946269200 +0100
 @@ -1,15 +1,32 @@
  package net.minecraft.client.renderer.block;
  
@@ -169,7 +169,7 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/renderer/block/Textu
      public void onTick() {
      }
 +    
-+    public void bindImage (RenderEngine renderEngine) {
++    public void bindImage (RenderEngine renderEngine) {;
 +    	if (tileImage == 0) {
 +    		GL11.glBindTexture(GL11.GL_TEXTURE_2D, renderEngine.getTexture("/terrain.png"));
 +    	} else {
