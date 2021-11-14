@@ -12,7 +12,7 @@ My goal is keeping base class edit to the bare minimum. I'll be modifying Indev 
 
 I'm using [Retro MCP](https://github.com/MCPHackers/RetroMCP) to decompile and modify Minecraft Indev 20100223, so big thanks to all developers and contributors.
 
-!(https://repository-images.githubusercontent.com/417943142/cac3478c-1e9c-4987-98e2-a0223d6b8988)
+![Retro MCP logo](https://repository-images.githubusercontent.com/417943142/cac3478c-1e9c-4987-98e2-a0223d6b8988)
 
 As you will notice, English is not my first language. That's why I'm using github to write the docs. Pull requests to fix my crappy writing are welcome!
 
