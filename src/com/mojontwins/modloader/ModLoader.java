@@ -6,6 +6,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
@@ -64,10 +65,10 @@ public class ModLoader {
 	
 	// A map for free / used item texture indexes
 	private static final int [] itemTextureIndexes = new int [] {
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,
-		1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0,
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,
-		1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1,
+		1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1,
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1,
+		1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1,
 		1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
 		1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
 		1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -91,6 +92,10 @@ public class ModLoader {
 	// Store here the texture overrides
 	public static List<HashMap<String,Object>> overrides;
 	
+	// Used to modify RenderPlayer.armorFilenamePrefix
+	private static Field field_armorList = null;
+	private static Field field_modifiers = null;
+	
 	public ModLoader () {
 		
 	}
@@ -106,10 +111,18 @@ public class ModLoader {
 		// Initialize overrides
 		overrides = new ArrayList<HashMap<String,Object>>();
 		
-		try {
+		try {	    
+			// Make some fields accesible
+			field_modifiers = (java.lang.reflect.Field.class).getDeclaredField("modifiers");
+            field_modifiers.setAccessible(true);
+            
+		    field_armorList = (net.minecraft.client.renderer.entity.RenderPlayer.class).getDeclaredFields()[3];
+		    field_modifiers.setInt(field_armorList, field_armorList.getModifiers() & 0xffffffef);
+		    field_armorList.setAccessible(true);
+			
+	        // Get a path to the minecraft jar.			
 	        File file;
 	
-	        // Get a path to the minecraft jar.
 	        try {
 	            String path = URLDecoder
 	            		.decode((com.mojontwins.modloader.ModLoader.class).getProtectionDomain().getCodeSource().getLocation().getPath(), "UTF-8")
@@ -133,7 +146,7 @@ public class ModLoader {
 	        modDir.mkdirs();
 	        
 	        // Load mods in the `/mods/` directory
-	        readFromModFolder(modDir);
+	        //readFromModFolder(modDir);
 	        
 	        // Load mods in the classpath (this includes the main minecraft.jar)
 	        readFromClassPath(file);
@@ -151,8 +164,7 @@ public class ModLoader {
 	        for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
 	        	BaseMod basemod = (BaseMod)iterator.next();
 	        	basemod.modsLoaded ();       	
-	        }
-	        
+	        }			
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new RuntimeException ("Exception in ModLoader.init", e);			
@@ -214,6 +226,33 @@ public class ModLoader {
 	public static void registerBlock (ModBlock block) throws Exception {
 		registerBlock (block, null);
 	}
+	
+	/*
+	 * Registers a new kind of armor
+	 */
+    public static int addArmor(String s) throws Exception {
+    	
+        // Gets a copy of the `armorFilenamePrefix` array in a list
+    	String as[] = (String[]) field_armorList.get(null);
+        List<String> list = Arrays.asList(as);
+        ArrayList<String> arraylist = new ArrayList<String>();
+        arraylist.addAll(list);
+
+        // Make sure it's not been added yet
+        if (!arraylist.contains(s)) {
+            arraylist.add(s);
+        }
+
+        // Now return an index
+        int i = arraylist.indexOf(s);
+        
+        // And substitute the original static array for the modified one
+        field_armorList.set(null, ((Object)(arraylist.toArray(new String[0]))));
+        
+        System.out.println ("Added new armor type " + s + ", renderIndex " + i);
+        
+        return i;
+    }
 
 	/*
 	 * Methods to override textures

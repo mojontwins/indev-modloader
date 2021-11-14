@@ -23,8 +23,10 @@ This is the roadmap which will be constantly changing.
 * Create a basic ModBase class and make the system to automaticly run mod_Name classes.
 * [x] Basic ModBase class and mod_XXX importing.
 * [x] Use your mod class to add blocks.
-* [ ] Use your mod class to add items.
+* [X] Use your mod class to add items.
 * [x] Use your mod class to add recipes of any kind.
+* [ ] Use your mod to add armor
+* [ ] Render blocks using custom renderers.
 * [ ] Use your mod class to add food.
 * [ ] Use your mod class to add tile entities.
 * [ ] Use your mod class to add entities.
@@ -1023,10 +1025,10 @@ So let's get on to it. First of all we have to create the array to serve free te
 ```java
     // A map for free / used item texture indexes
     private static final int [] itemTextureIndexes = new int [] {
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,
-        1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0,
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,
-        1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1,
         1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
         1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
         1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -1499,5 +1501,212 @@ It works, so let's do something in `hookOnBlockHarvested`: We detect if the tool
         
         return false;
     }   
+```
+
+## New Armor
+
+As we are dealing with items, and Armor pieces are items, let's see how we can add new armor.
+
+In Indev, all armor items are instances of `ItemArmor`, which is a rather simple class. I've renamed the standard MCP identifiers to make it more understandable:
+
+```java
+    package net.minecraft.game.item;
+
+    public class ItemArmor extends Item {
+        private static final int[] damageReduceAmountArray = new int[]{3, 8, 6, 3};
+        private static final int[] maxDamageArray = new int[]{11, 16, 15, 13};
+        public final int armorType;
+        public final int damageReduceAmount;
+        public final int renderIndex;
+
+        public ItemArmor(int itemID, int strength, int renderType, int type) {
+            super(itemID);
+            this.armorType = type;
+            this.renderIndex = renderType;
+            this.damageReduceAmount = damageReduceAmountArray[type];
+            this.maxDamage = maxDamageArray[type] * 3 << strength;
+            this.maxStackSize = 1;
+        }
+    }
+```
+
+* `strength` is used to calculate the amount of damage each armor piece resists before breaking. Each type of armor piece takes a fixed base amount of damage which is then multiplied by 3 raised to the power of 'strength'. Strength seems to be:
+    * 0 for leather (named 'cloth'),
+    * 1 for chain,
+    * 2 for iron,
+    * 3 for diamond and
+    * 1 for gold
+
+* `renderType` is used by the renderer to index (0-4) this array which is used to select which texture is used to render the armor pieces on the payer (defined and used in `RenderPlayer`:
+
+```java
+    private static final String[] armorFilenamePrefix = new String[]{"cloth", "chain", "iron", "diamond", "gold"};
+```
+
+* `type` is:
+    * 0 Helmet
+    * 1 Chest
+    * 2 Leggins
+    * 3 Boots
+
+Looking at the code and understanding those values, we can deduce that:
+
+* The amount of damage an armour piece takes is fixed and doesn't depend on the material, only on the type, and is defined by the array `damageReduceAmountArray`.
+* The material only define how long the damage lasts before breaking.
+* Gold and chain armor pieces are the same.
+
+In order to add new kinds of armor, with completely customizable stats, and custom graphics, would need extending `ItemArmor` and assigning custom values to `damageReduceAmount` and `maxDamage`, plus adding new items to the `armorFilenamePrefix` array we can index with new `renderType` values. ModLoader should provide a method to add items to this array and retrieve the new item index so we can store it in our class.
+
+Once we remove all the `final`s in `ItemArmor`, The new class for custom armor pieces could be:
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.item.ItemArmor;
+
+    public class ModItemArmor extends ItemArmor {
+        public String name;
+
+        public ModItemArmor (int itemID, int damageReduceAmount, int maxDamage, int renderType, int type) {
+            super (itemID, 0, 0, type);     // 0, 0, because we are overwriting:
+            this.renderIndex = renderType;
+            this.damageReduceAmount = damageReduceAmount;
+            this.maxDamage = maxDamage;
+        }
+
+        public ModItemArmor setName (String name) {
+            this.name = name;
+            return this;
+        }
+    }
+```
+
+The hard part would be being able to use our own texture for the model as the array containing the filename prefixes is static, final and private. The original Risugami's Modloader `arrArmor` does just that: adds the filename prefix and returns the index we want using some Java magic. We well be using Reflect to actually accessing the attributes of `RenderPlayer`. This needs some setup:
+
+```java
+    private static Field field_armorList = null;
+    private static Field field_modifiers = null;
+```
+
+Then this, in init:
+
+```java
+    field_armorList = (net.minecraft.client.renderer.entity.RenderPlayer.class).getDeclaredFields()[3];
+    field_modifiers.setInt(field_armorList, field_armorList.getModifiers() & 0xffffffef);
+    field_armorList.setAccessible(true);
+```
+
+Let's pause for a bit and try to understand what this code does. Take a look at how `RenderPlayer` is defined:
+
+```java
+    public final class RenderPlayer extends RenderLiving {
+        private ModelBiped modelBipedMain;
+        private ModelBiped modelArmorChestplate;
+        private ModelBiped modelArmor;
+        private static final String[] armorFilenamePrefix = new String[]{"cloth", "chain", "iron", "diamond", "gold"};
+
+        // etc
+
+    }
+```
+
+Our goal is getting to add stuff to `armorFilenamePrefix`. If we count the attributes (starting at 0), then 0 is `modelBipedMain`, 1 is `modelArmorChestPlate`, 2 is `modelArmor` and 3 is `armorFilenamePrefix`. So the first line of code,
+
+```java
+    field_armorList = (net.minecraft.client.renderer.entity.RenderPlayer.class).getDeclaredFields()[3];
+```
+
+is selecting the declared field number '3' from `RenderPlayer`, this is, `armorFilenamePrefix`. The next line is changing the modifiers by resetting the modifier which equals 0x10 (& 0xffffffef will reset bit 4). Java field modifiers are:
+
+|Flag Name|Value|Interpretation
+|---------|-----|--------------
+|ACC_PUBLIC|0x0001|Declared public; may be accessed from outside its package.
+|ACC_PRIVATE|0x0002|Declared private; accessible only within the defining class.
+|ACC_PROTECTED|0x0004|Declared protected; may be accessed within subclasses.
+|ACC_STATIC|0x0008|Declared static.
+|ACC_FINAL|0x0010|Declared final; must not be overridden (§5.4.5).
+|ACC_SYNCHRONIZED|0x0020  Declared synchronized; invocation is wrapped by a monitor use.
+|ACC_BRIDGE|0x0040|A bridge method, generated by the compiler.
+|ACC_VARARGS|0x0080|Declared with variable number of arguments.
+|ACC_NATIVE|0x0100|Declared native; implemented in a language other than Java.
+|ACC_ABSTRACT|0x0400| Declared abstract; no implementation is provided.
+|ACC_STRICT|0x0800|Declared strictfp; floating-point mode is FP-strict.
+|ACC_SYNTHETIC|0x1000|Declared synthetic; not present in the source code.
+
+So the second line of code is removing the `final` modifier from `armorFilenamePrefix`. The third and last line just makes the method accesible, overriding a possible `protected` or `private`.
+
+Having all this setup, we can write an `addArmor` method which gets a String with a new filename prefix, adds it to `RenderPlayer.armorFilenamePrefix`, and retuns its index. This code is almost the same as Risugami's:
+
+```java
+    public static int addArmor(String s) throws Exception {
+        
+        // Gets a copy of the `armorFilenamePrefix` array in a list
+        String as[] = (String[])field_armorList.get(null);
+        List<String> list = Arrays.asList(as);
+        ArrayList<String> arraylist = new ArrayList<String>();
+        arraylist.addAll(list);
+
+        // Make sure it's not been added yet
+        if (!arraylist.contains(s)) {
+            arraylist.add(s);
+        }
+
+        // Now return an index
+        int i = arraylist.indexOf(s);
+        
+        // And substitute the original static array for the modified one
+        field_armorList.set(null, ((Object)(arraylist.toArray(new String[0]))));
+        
+        return i;
+    }
+```
+
+Using all this, we are going to add a full Steel Armor which is 1.5 the stats of the Iron armor. If you have followed me until this point you'll be able to work out the numbers. We've also added `steel_1.png` and `steel_2.png` with the new textures to an `/armor` folder in our project, and the new item textures to our textures folder.
+
+```java
+    public static ModItemArmor itemSteelHelmet;
+    public static ModItemArmor itemSteelChest;
+    public static ModItemArmor itemSteelLeggins;
+    public static ModItemArmor itemSteelBoots;
+```
+
+```java 
+    int steelRenderType = ModLoader.addArmor("steel");
+    
+    itemSteelHelmet = new ModItemArmor(ModLoader.getItemId(), 4, 149, steelRenderType, 0);
+    itemSteelHelmet.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_helmet.png"));
+    
+    itemSteelChest = new ModItemArmor(ModLoader.getItemId(), 9, 216, steelRenderType, 1);
+    itemSteelHelmet.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_chest.png"));
+    
+    itemSteelLeggins = new ModItemArmor(ModLoader.getItemId(), 6, 202, steelRenderType, 2);
+    itemSteelHelmet.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_legs.png"));
+
+    itemSteelBoots = new ModItemArmor(ModLoader.getItemId(), 3, 175, steelRenderType, 3);
+    itemSteelBoots.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_boots.png")); 
+```
+
+and
+
+```java
+    ModLoader.addRecipe(new ItemStack(itemSteelHelmet, 1), new Object [] {
+        "###", "# #", "   ",
+        '#', itemSteelIngot
+    });
+        
+    ModLoader.addRecipe(new ItemStack(itemSteelChest, 1), new Object [] {
+        "# #", "###", "###",
+        '#', itemSteelIngot
+    });
+    
+    ModLoader.addRecipe(new ItemStack(itemSteelLeggins, 1), new Object [] {
+        "###", "# #", "# #",
+        '#', itemSteelIngot
+    });
+        
+    ModLoader.addRecipe(new ItemStack(itemSteelBoots, 1), new Object [] {
+        "# #", "# #",
+        '#', itemSteelIngot
+    });
 ```
 

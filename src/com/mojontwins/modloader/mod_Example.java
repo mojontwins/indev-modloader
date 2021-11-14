@@ -22,6 +22,10 @@ public class mod_Example extends BaseMod {
 	public static ItemPickaxe itemSteelPickaxe;
 	public static ModItem itemSteelIngot;
 	public static ItemPickaxe itemSilkTouchGoldenPickaxe;
+	public static ModItemArmor itemSteelHelmet;
+	public static ModItemArmor itemSteelChest;
+	public static ModItemArmor itemSteelLeggins;
+	public static ModItemArmor itemSteelBoots;
 	
 	public void load () throws Exception {
 		blockStoneBricks = new BlockStoneBricks(ModLoader.getBlockId (), Material.rock).setBlockHardness(1.5F).setBlockResistance(1.5F).setName("block.stone_bricks");
@@ -43,6 +47,20 @@ public class mod_Example extends BaseMod {
 		itemSilkTouchGoldenPickaxe = new ItemSilkTouchGoldenPickaxe(ModLoader.getItemId()).setName("item.silk_touch_golden_pickaxe");
 		itemSilkTouchGoldenPickaxe.setIconIndex(Item.pickaxeGold.getIconIndex());
 		
+		int steelRenderType = ModLoader.addArmor("steel");
+		
+		itemSteelHelmet = new ModItemArmor(ModLoader.getItemId(), 4, 149, steelRenderType, 0);
+		itemSteelHelmet.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_helmet.png"));
+		
+		itemSteelChest = new ModItemArmor(ModLoader.getItemId(), 9, 216, steelRenderType, 1);
+		itemSteelChest.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_chest.png"));
+		
+		itemSteelLeggins = new ModItemArmor(ModLoader.getItemId(), 6, 202, steelRenderType, 2);
+		itemSteelLeggins.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_legs.png"));
+
+		itemSteelBoots = new ModItemArmor(ModLoader.getItemId(), 3, 175, steelRenderType, 3);
+		itemSteelBoots.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_boots.png"));
+
 		// Substitute the original golden pickaxe:
 		Item.pickaxeGold = itemSilkTouchGoldenPickaxe;
 		Item.itemsList[Item.pickaxeGold.shiftedIndex] = itemSilkTouchGoldenPickaxe;
@@ -57,16 +75,36 @@ public class mod_Example extends BaseMod {
 			'X', itemPebble
 		});
 		
-		ModLoader.addRecipe(new ItemStack(itemSteelSword,1), new Object [] {
+		ModLoader.addRecipe(new ItemStack(itemSteelSword, 1), new Object [] {
 			" # ", " # ", " X ",
 			'#', itemSteelIngot,
 			'X', Item.stick
 		});
 
-		ModLoader.addRecipe(new ItemStack(itemSteelPickaxe,1), new Object [] {
+		ModLoader.addRecipe(new ItemStack(itemSteelPickaxe, 1), new Object [] {
 			"###", " X ", " X ",
 			'#', itemSteelIngot,
 			'X', Item.stick
+		});
+		
+		ModLoader.addRecipe(new ItemStack(itemSteelHelmet, 1), new Object [] {
+			"###", "# #", "   ",
+			'#', itemSteelIngot
+		});
+			
+		ModLoader.addRecipe(new ItemStack(itemSteelChest, 1), new Object [] {
+			"# #", "###", "###",
+			'#', itemSteelIngot
+		});
+		
+		ModLoader.addRecipe(new ItemStack(itemSteelLeggins, 1), new Object [] {
+			"###", "# #", "# #",
+			'#', itemSteelIngot
+		});
+			
+		ModLoader.addRecipe(new ItemStack(itemSteelBoots, 1), new Object [] {
+			"# #", "# #",
+			'#', itemSteelIngot
 		});
 		
 		ModLoader.addSmelting(Block.cobblestone.blockID, Block.stone.blockID);
@@ -87,6 +125,7 @@ public class mod_Example extends BaseMod {
 		minecraft.thePlayer.inventory.setInventorySlotContents(5, new ItemStack(itemSteelSword, 1));
 		minecraft.thePlayer.inventory.setInventorySlotContents(6, new ItemStack(itemSteelPickaxe, 1));
 		minecraft.thePlayer.inventory.setInventorySlotContents(7, new ItemStack(Item.pickaxeGold, 1));
+		minecraft.thePlayer.inventory.setInventorySlotContents(8, new ItemStack(itemSteelIngot, 64));
 	}
 	
 	public boolean hookOnBlockHarvested (Minecraft minecraft, World world, int x, int y, int z, int blockID, int metadata) {

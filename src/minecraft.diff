@@ -1,3 +1,4 @@
+Only in MCP-LTS\src/minecraft: armor
 Only in MCP-LTS\src/minecraft/com: mojontwins
 diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/Minecraft.java" "MCP-LTS\\src/minecraft/net/minecraft/client/Minecraft.java"
 --- "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/Minecraft.java"	2021-11-10 11:11:51.701815400 +0100
@@ -221,15 +222,23 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/block/tileentity/TileE
          } else if (var0 == Block.oreGold.blockID) {
 diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemArmor.java" "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemArmor.java"
 --- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemArmor.java"	2021-11-10 11:11:52.670577200 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemArmor.java"	2021-11-12 11:46:09.621329700 +0100
-@@ -1,6 +1,6 @@
++++ "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemArmor.java"	2021-11-14 15:04:23.527376400 +0100
+@@ -1,11 +1,11 @@
  package net.minecraft.game.item;
  
 -public final class ItemArmor extends Item {
 +public class ItemArmor extends Item {
      private static final int[] damageReduceAmountArray = new int[]{3, 8, 6, 3};
      private static final int[] maxDamageArray = new int[]{11, 16, 15, 13};
-     public final int armorType;
+-    public final int armorType;
+-    public final int damageReduceAmount;
+-    public final int renderIndex;
++    public int armorType;
++    public int damageReduceAmount;
++    public int renderIndex;
+ 
+     public ItemArmor(int var1, int var2, int var3, int var4) {
+         super(var1);
 diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemAxe.java" "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemAxe.java"
 --- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemAxe.java"	2021-11-10 11:11:52.670577200 +0100
 +++ "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemAxe.java"	2021-11-12 11:46:15.758968600 +0100
