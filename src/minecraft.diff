@@ -1,8 +1,8 @@
-Only in MCP-LTS\src/minecraft: armor
-Only in MCP-LTS\src/minecraft/com: mojontwins
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/Minecraft.java" "MCP-LTS\\src/minecraft/net/minecraft/client/Minecraft.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/Minecraft.java"	2021-11-10 11:11:51.701815400 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/client/Minecraft.java"	2021-11-12 11:08:59.975564500 +0100
+Only in MCP-LTS/src/minecraft: armor
+Only in MCP-LTS/src/minecraft/com: mojontwins
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java	2021-11-10 11:11:51.701815400 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java	2021-11-12 11:08:59.975564500 +0100
 @@ -58,6 +58,8 @@
  import org.lwjgl.opengl.GL11;
  import org.lwjgl.opengl.GLContext;
@@ -55,9 +55,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/Minecraft.java" "MCP
 +    
 +    Minecraft getInstance () { return this; }
  }
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/gui/GuiCrafting.java" "MCP-LTS\\src/minecraft/net/minecraft/client/gui/GuiCrafting.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/gui/GuiCrafting.java"	2021-11-10 11:11:51.779940400 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/client/gui/GuiCrafting.java"	2021-11-11 10:51:04.432177600 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/gui/GuiCrafting.java MCP-LTS/src/minecraft/net/minecraft/client/gui/GuiCrafting.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/client/gui/GuiCrafting.java	2021-11-10 11:11:51.779940400 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/client/gui/GuiCrafting.java	2021-11-11 10:51:04.432177600 +0100
 @@ -9,6 +9,8 @@
  import net.minecraft.game.recipe.CraftingManager;
  import org.lwjgl.opengl.GL11;
@@ -81,9 +81,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/gui/GuiCrafting.java
      }
  
      protected final void drawGuiContainerForegroundLayer() {
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/player/PlayerControllerSP.java" "MCP-LTS\\src/minecraft/net/minecraft/client/player/PlayerControllerSP.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/player/PlayerControllerSP.java"	2021-11-10 11:11:51.983064800 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/client/player/PlayerControllerSP.java"	2021-11-12 13:56:37.865299700 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/PlayerControllerSP.java MCP-LTS/src/minecraft/net/minecraft/client/player/PlayerControllerSP.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/PlayerControllerSP.java	2021-11-10 11:11:51.983064800 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/client/player/PlayerControllerSP.java	2021-11-12 13:56:37.865299700 +0100
 @@ -1,5 +1,7 @@
  package net.minecraft.client.player;
  
@@ -102,9 +102,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/player/PlayerControl
          }
  
          return var6;
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/renderer/RenderEngine.java" "MCP-LTS\\src/minecraft/net/minecraft/client/renderer/RenderEngine.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/renderer/RenderEngine.java"	2021-11-10 11:11:52.092440200 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/client/renderer/RenderEngine.java"	2021-11-11 22:38:44.400599900 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/RenderEngine.java MCP-LTS/src/minecraft/net/minecraft/client/renderer/RenderEngine.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/RenderEngine.java	2021-11-10 11:11:52.092440200 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/client/renderer/RenderEngine.java	2021-11-11 22:38:44.400599900 +0100
 @@ -173,27 +173,38 @@
      }
  
@@ -159,9 +159,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/renderer/RenderEngin
      }
  
      public final void refreshTextures() {
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/renderer/block/TextureFX.java" "MCP-LTS\\src/minecraft/net/minecraft/client/renderer/block/TextureFX.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/renderer/block/TextureFX.java"	2021-11-10 11:11:52.139315500 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/client/renderer/block/TextureFX.java"	2021-11-12 09:24:08.946269200 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/block/TextureFX.java MCP-LTS/src/minecraft/net/minecraft/client/renderer/block/TextureFX.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/block/TextureFX.java	2021-11-10 11:11:52.139315500 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/client/renderer/block/TextureFX.java	2021-11-12 09:24:08.946269200 +0100
 @@ -1,15 +1,32 @@
  package net.minecraft.client.renderer.block;
  
@@ -199,9 +199,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/client/renderer/block/Textu
 +    	}
 +    }
  }
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java" "MCP-LTS\\src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java"	2021-11-10 11:11:52.514314200 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java"	2021-11-11 11:14:44.455263300 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java MCP-LTS/src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java	2021-11-10 11:11:52.514314200 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java	2021-11-11 11:14:44.455263300 +0100
 @@ -2,6 +2,8 @@
  
  import com.mojang.nbt.NBTTagCompound;
@@ -220,9 +220,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/block/tileentity/TileE
          if (var0 == Block.oreIron.blockID) {
              return Item.ingotIron.shiftedIndex;
          } else if (var0 == Block.oreGold.blockID) {
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemArmor.java" "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemArmor.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemArmor.java"	2021-11-10 11:11:52.670577200 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemArmor.java"	2021-11-14 15:04:23.527376400 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemArmor.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemArmor.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemArmor.java	2021-11-10 11:11:52.670577200 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemArmor.java	2021-11-14 15:04:23.527376400 +0100
 @@ -1,11 +1,11 @@
  package net.minecraft.game.item;
  
@@ -239,9 +239,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemArmor.java" "
  
      public ItemArmor(int var1, int var2, int var3, int var4) {
          super(var1);
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemAxe.java" "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemAxe.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemAxe.java"	2021-11-10 11:11:52.670577200 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemAxe.java"	2021-11-12 11:46:15.758968600 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemAxe.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemAxe.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemAxe.java	2021-11-10 11:11:52.670577200 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemAxe.java	2021-11-12 11:46:15.758968600 +0100
 @@ -2,7 +2,7 @@
  
  import net.minecraft.game.block.Block;
@@ -251,9 +251,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemAxe.java" "MC
      private static Block[] blocksEffectiveAgainst;
  
      public ItemAxe(int var1, int var2) {
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemBow.java" "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemBow.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemBow.java"	2021-11-10 11:11:52.686188600 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemBow.java"	2021-11-12 11:46:24.755938200 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemBow.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemBow.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemBow.java	2021-11-10 11:11:52.686188600 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemBow.java	2021-11-12 11:46:24.755938200 +0100
 @@ -4,13 +4,13 @@
  import net.minecraft.game.entity.player.EntityPlayer;
  import net.minecraft.game.level.World;
@@ -270,9 +270,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemBow.java" "MC
          if (var3.inventory.consumeInventoryItem(Item.arrow.shiftedIndex)) {
              var2.playSoundAtEntity(var3, "random.bow", 1.0F, 1.0F / (rand.nextFloat() * 0.4F + 0.8F));
              var2.spawnEntityInWorld(new EntityArrow(var2, var3));
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemFlintAndSteel.java" "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemFlintAndSteel.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemFlintAndSteel.java"	2021-11-10 11:11:52.686188600 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemFlintAndSteel.java"	2021-11-12 11:46:39.229743100 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemFlintAndSteel.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemFlintAndSteel.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemFlintAndSteel.java	2021-11-10 11:11:52.686188600 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemFlintAndSteel.java	2021-11-12 11:46:39.229743100 +0100
 @@ -3,14 +3,14 @@
  import net.minecraft.game.block.Block;
  import net.minecraft.game.level.World;
@@ -290,9 +290,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemFlintAndSteel
          if (var6 == 0) {
              --var4;
          }
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemHoe.java" "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemHoe.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemHoe.java"	2021-11-10 11:11:52.701828600 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemHoe.java"	2021-11-12 11:47:11.626280800 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemHoe.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemHoe.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemHoe.java	2021-11-10 11:11:52.701828600 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemHoe.java	2021-11-12 11:47:11.626280800 +0100
 @@ -4,14 +4,14 @@
  import net.minecraft.game.entity.other.EntityItem;
  import net.minecraft.game.level.World;
@@ -310,9 +310,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemHoe.java" "MC
          if (var3 > 0 && var4 > 0 && var5 > 0 && var3 < var2.width - 1 && var4 < var2.height - 1 && var5 < var2.length - 1) {
              var6 = var2.getBlockId(var3, var4, var5);
              if ((var2.getBlockMaterial(var3, var4 + 1, var5).isSolid() || var6 != Block.grass.blockID) && var6 != Block.dirt.blockID) {
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemPainting.java" "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemPainting.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemPainting.java"	2021-11-10 11:11:52.701828600 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemPainting.java"	2021-11-12 11:47:23.654843700 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemPainting.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemPainting.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemPainting.java	2021-11-10 11:11:52.701828600 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemPainting.java	2021-11-12 11:47:23.654843700 +0100
 @@ -3,13 +3,13 @@
  import net.minecraft.game.entity.EntityPainting;
  import net.minecraft.game.level.World;
@@ -329,9 +329,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemPainting.java
          if (var6 == 0) {
              return false;
          } else if (var6 == 1) {
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemPickaxe.java" "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemPickaxe.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemPickaxe.java"	2021-11-10 11:11:52.701828600 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemPickaxe.java"	2021-11-12 11:46:01.136183000 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemPickaxe.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemPickaxe.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemPickaxe.java	2021-11-10 11:11:52.701828600 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemPickaxe.java	2021-11-12 11:46:01.136183000 +0100
 @@ -3,7 +3,7 @@
  import net.minecraft.game.block.Block;
  import net.minecraft.game.block.Material;
@@ -350,9 +350,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemPickaxe.java"
          if (var1 == Block.obsidian) {
              return this.harvestLevel == 3;
          } else if (var1 != Block.blockDiamond && var1 != Block.oreDiamond) {
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemSeeds.java" "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemSeeds.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemSeeds.java"	2021-11-10 11:11:52.701828600 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemSeeds.java"	2021-11-12 11:47:39.196972600 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemSeeds.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemSeeds.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemSeeds.java	2021-11-10 11:11:52.701828600 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemSeeds.java	2021-11-12 11:47:39.196972600 +0100
 @@ -3,7 +3,7 @@
  import net.minecraft.game.block.Block;
  import net.minecraft.game.level.World;
@@ -371,9 +371,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemSeeds.java" "
          if (var6 != 1) {
              return false;
          } else if (var3 > 0 && var4 > 0 && var5 > 0 && var3 < var2.width - 1 && var4 < var2.height - 1 && var5 < var2.length - 1) {
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemSoup.java" "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemSoup.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemSoup.java"	2021-11-10 11:11:52.701828600 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemSoup.java"	2021-11-12 11:47:45.447350500 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemSoup.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemSoup.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemSoup.java	2021-11-10 11:11:52.701828600 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemSoup.java	2021-11-12 11:47:45.447350500 +0100
 @@ -3,12 +3,12 @@
  import net.minecraft.game.entity.player.EntityPlayer;
  import net.minecraft.game.level.World;
@@ -389,9 +389,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemSoup.java" "M
          super.onItemRightClick(var1, var2, var3);
          return new ItemStack(Item.bowlEmpty);
      }
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemSpade.java" "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemSpade.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemSpade.java"	2021-11-10 11:11:52.717438700 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemSpade.java"	2021-11-12 11:47:52.637219000 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemSpade.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemSpade.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemSpade.java	2021-11-10 11:11:52.717438700 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemSpade.java	2021-11-12 11:47:52.637219000 +0100
 @@ -2,7 +2,7 @@
  
  import net.minecraft.game.block.Block;
@@ -401,9 +401,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemSpade.java" "
      private static Block[] blocksEffectiveAgainst;
  
      public ItemSpade(int var1, int var2) {
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemSword.java" "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemSword.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemSword.java"	2021-11-10 11:11:52.717438700 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemSword.java"	2021-11-12 11:44:23.664514600 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemSword.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemSword.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemSword.java	2021-11-10 11:11:52.717438700 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemSword.java	2021-11-12 11:44:23.664514600 +0100
 @@ -2,8 +2,8 @@
  
  import net.minecraft.game.block.Block;
@@ -439,9 +439,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemSword.java" "
          return this.weaponDamage;
      }
  }
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemTool.java" "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemTool.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemTool.java"	2021-11-10 11:11:52.717438700 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/game/item/ItemTool.java"	2021-11-12 11:40:23.153406400 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemTool.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemTool.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemTool.java	2021-11-10 11:11:52.717438700 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemTool.java	2021-11-12 11:40:23.153406400 +0100
 @@ -4,8 +4,8 @@
  
  public class ItemTool extends Item {
@@ -481,9 +481,9 @@ diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/item/ItemTool.java" "M
          return this.damageVsEntity;
      }
  }
-diff -ur "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java" "MCP-LTS\\src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java"
---- "MCP-LTS_Clean\\src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java"	2021-11-10 11:11:52.811206400 +0100
-+++ "MCP-LTS\\src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java"	2021-11-11 11:56:38.808218500 +0100
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java MCP-LTS/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java	2021-11-10 11:11:52.811206400 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java	2021-11-11 11:56:38.808218500 +0100
 @@ -2,6 +2,9 @@
  
  import java.util.ArrayList;
