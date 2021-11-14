@@ -16,6 +16,22 @@ I'm using [Retro MCP](https://github.com/MCPHackers/RetroMCP) to decompile and m
 
 As you will notice, English is not my first language. That's why I'm using github to write the docs. Pull requests to fix my crappy writing are welcome!
 
+# I wanna fiddle with this before proper releases
+
+Here's what you need to do:
+
+1.- Install RetroMCP and configure it for Indev 20100223. Decompile the jar.
+2.- Now you have a `src` folder with the decompiled & deobfuscated source code of Minecraft Indev. Now copy the file minecraft.diff found in the `src` folder of this repo in your RetroMCP folder (at the same level as the `src` folder) and type
+
+```
+    patch --binary -p1 -u -i "minecraft.diff" -d "."
+```
+
+This should patch a few files from Minecraft.
+
+3.- Now get `src` folder in this repo and copy it to your RetroMCP folder. It should combine with the already existing, patched `src` folder.
+4.- Fire up Eclipse or whatever you are using.
+
 # Roadmap
 
 This is the roadmap which will be constantly changing.
