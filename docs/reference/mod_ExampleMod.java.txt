@@ -1,0 +1,59 @@
+// Example ModLoader Mod by BlockAfterBlock (for #mcp-modding irc)
+// Shows adding a block, an item, custom textures, adding a recipe, 
+// adding a smelting recipe, AND ADDING AN ENTITY.
+
+package net.minecraft.src;
+
+public class mod_ExampleMod extends BaseMod
+{				
+	//This can be almost anything to my knowledge. I just put version of Minecraft.
+	public String Version()
+		{
+			return "1.5_01";
+	 	}
+	
+	// In parenthesis is the Block ID followed by the texture (BlockID,Texture)
+	// Block IDs can go up to 255
+	// .setHardness = The blocks hardness, how long it takes to destroy (Stone is 1.5F)
+	// .setResistance = How resistant a block is to explosions (Stone is 10F, obsidian is 2000F)
+		public static Block ExampleBlock = new ExampleBlock(100,0).setHardness(5.0F).setResistance(10F).setBlockName("ExampleBlock");
+	
+	// In parenthesis is the Item ID
+	// Item IDs can go up to 32000
+	// Add .setIconCoords(int,int)if you want to make it look like a item already in /gui/items.png (For example, .setIconCoords(8,4) for diamond)
+		public static Item ExampleItem = new ExampleItem(5000).setItemName("ExampleItem");
+		    
+		public mod_ExampleMod()
+		{
+		//You need to register your block (Only for blocks)
+			ModLoader.RegisterBlock(ExampleBlock);
+		//Now lets set the textures for the block and the item
+			ExampleBlock.blockIndexInTexture = ModLoader.addOverride("/terrain.png", "/FolderName/ExampleBlock.png");
+			ExampleItem.iconIndex = ModLoader.addOverride("/gui/items.png", "/FolderName/ExampleItem.png");
+		//Lets add their in-game names
+			ModLoader.AddName(ExampleBlock, "Example Block");
+			ModLoader.AddName(ExampleItem, "Example Item");
+		//We want ExampleItem to smelt into ExampleBlock (For a block do this -- block.stone.blockID)
+			ModLoader.AddSmelting(ExampleItem.shiftedIndex, new ItemStack(ExampleBlock));
+		//And finally, the recipes (Make sure you do exactly how I do it)
+			ModLoader.AddRecipe(new ItemStack(ExampleBlock, 1), new Object[] {"XXX"," Y ", "XXX",('X'),Block.dirt,('Y'),Block.sand});
+		//The block should be crafted like this --
+		//[dirtblock][dirtblock][dirtblock]
+		//[ nothing ][sandblock][ nothing ]
+		//[dirtblock][dirtblock][dirtblock]
+
+                //Now we need to register the entity ID
+			 ModLoader.RegisterEntityID(EntityExample.class, "ExampleName", ModLoader.getUniqueEntityId());
+                //Now for the spawning. First goes the name of the class (EntityExample), then the spawn rarity (the lower, the rarer), the type of creature (monster, creature, or watercreature), and the biome(s) it spawns in. (There are a lot) 
+			 ModLoader.AddSpawn(EntityExample.class, 3, EnumCreatureType.monster, new BiomeGenBase[] {BiomeGenBase.forest, BiomeGenBase.seasonalForest, BiomeGenBase.savanna, BiomeGenBase.swampland, BiomeGenBase.shrubland, BiomeGenBase.plains});
+		}
+
+                //Time to add the render			 
+	        public void AddRenderer(Map map)
+		{
+			map.put(LMHBarbarian.class, new RenderBiped(new ModelBiped(), 0.5F));
+		}
+
+}
+
+//There you go, you're done. Make sure you make a ExampleBlock and ExampleItem class!
