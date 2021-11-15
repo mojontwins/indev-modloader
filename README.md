@@ -1909,4 +1909,90 @@ Create the items in `mod_Example`, assign graphics, add a smelting recipe, and g
 
 TODO - Prevent eating food when right-clicking tile entities!
 
-Next: adding some visual indicator for status effects!
+TODO - adding some visual indicator for status effects!
+
+### More status effects stuff - attack strength
+
+There are two potions in 1.2.5, *weakness* and *damageBoost* which modify the strength when the player hits mobs. We can provide support for such kind of modifications with yet another hook, this time at `Minecraft.clickMouse` right after the attack strength has been calculated in `var19`. There's this:
+
+```java
+    int var19 = (var9 = (var11 = var10000.inventory).getStackInSlot(var11.currentItem)) != null ? Item.itemsList[var9.itemID].getDamageVsEntity() : 1;
+```
+
+We can follow this with:
+
+```java
+    // var19 : hit strength.
+    // var14 : Entity being hit
+    var19 = ModLoader.HookAttackStrengthModifier (this.thePlayer, var14, var19);
+```
+
+And add this new hook to `ModLoader`
+
+```java
+    public static int HookAttackStrengthModifier (EntityLiving entityLiving, Entity entityHit, int strength) {
+        int res = strength;
+        for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+            res = ((BaseMod)iterator.next()).HookAttackStrengthModifier(entityLiving, entityHit, res);
+        }
+        return res;
+    }
+```
+
+then `BaseMod`
+
+```java
+    public int HookAttackStrengthModifier (EntityLiving entityLiving, Entity entityHit, int strength) {
+        return strength;
+    }
+```
+
+TODO - Add example about using this alongside Status Effects
+
+### Player vs. Block
+
+The same way we can add hooks to modify how tools interact with blocks, in `Block.blockStrength` you have this bit:
+
+```java
+    [...]
+
+    InventoryPlayer var2 = (var1 = var1).inventory;
+    float var4 = 1.0F;
+    if (var2.mainInventory[var2.currentItem] != null) {
+        var4 = 1.0F * var2.mainInventory[var2.currentItem].getItem().getStrVsBlock(this);
+    }
+
+    [...]
+```
+
+Using the same kind of hook on var4 we can achieve the same effect as using 1.2.5 potions *digSpeed* and *digSlowdown*. Just adding this:
+
+```java
+    // var1 is playerEntity
+    // var4 is original strength
+    var4 = ModLoader.HookBlockHitStrengthModifier (var1, this, var4);
+```
+
+And the new hook in `Modloader`
+
+```java
+    public static float HookBlockHitStrengthModifier (EntityLiving entityLiving, Block block, float strength) {
+        float res = strength;
+        for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+            res = ((BaseMod)iterator.next()).HookAttackStrengthModifier(entityLiving, block, res);
+        }
+        return res;     
+    }
+```
+
+And `Basemod`
+
+```java
+    public float HookAttackStrengthModifier (EntityLiving entityLiving, Block block, float strength) {
+        return strength;
+    }
+```
+
+TODO - Add example about using this alongside Status Effects
+
+TODO - Implement hooks for *moveSpeed* & *moveSlowdown*.

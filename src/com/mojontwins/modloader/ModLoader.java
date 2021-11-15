@@ -27,6 +27,8 @@ import javax.imageio.ImageIO;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderEngine;
 import net.minecraft.game.block.Block;
+import net.minecraft.game.entity.Entity;
+import net.minecraft.game.entity.EntityLiving;
 import net.minecraft.game.item.Item;
 import net.minecraft.game.item.ItemBlock;
 import net.minecraft.game.item.ItemStack;
@@ -146,7 +148,7 @@ public class ModLoader {
 	        modDir.mkdirs();
 	        
 	        // Load mods in the `/mods/` directory
-	        //readFromModFolder(modDir);
+	        readFromModFolder(modDir);
 	        
 	        // Load mods in the classpath (this includes the main minecraft.jar)
 	        readFromClassPath(file);
@@ -538,6 +540,24 @@ public class ModLoader {
         	res = res || ((BaseMod)iterator.next()).hookOnBlockHarvested(minecraft, world, x, y, z, blockID, metadata);
         }
     	return res;
+    }
+    
+    // Called to recalculate player hit strength vs. entity
+    public static int HookAttackStrengthModifier (EntityLiving entityLiving, Entity entityHit, int strength) {
+    	int res = strength;
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+        	res = ((BaseMod)iterator.next()).HookAttackStrengthModifier(entityLiving, entityHit, res);
+        }
+    	return res;
+    }
+    
+    // Called to recalculate player hit strength vs. block
+    public static float HookBlockHitStrengthModifier (EntityLiving entityLiving, Block block, float strength) {
+    	float res = strength;
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+        	res = ((BaseMod)iterator.next()).HookAttackStrengthModifier(entityLiving, block, res);
+        }
+    	return res;   	
     }
     
     /*
