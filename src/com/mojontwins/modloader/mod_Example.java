@@ -1,5 +1,8 @@
 package com.mojontwins.modloader;
 
+import com.mojontwins.modloader.entity.status.Status;
+import com.mojontwins.modloader.entity.status.StatusPoisoned;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.game.block.Block;
 import net.minecraft.game.block.Material;
@@ -26,6 +29,9 @@ public class mod_Example extends BaseMod {
 	public static ModItemArmor itemSteelChest;
 	public static ModItemArmor itemSteelLeggins;
 	public static ModItemArmor itemSteelBoots;
+	public static Status statusPoisoned;
+	public static ItemFoodRawChicken itemFoodRawChicken;
+	public static ItemFoodCookedChicken itemFoodCookedChicken;
 	
 	public void load () throws Exception {
 		blockStoneBricks = new BlockStoneBricks(ModLoader.getBlockId (), Material.rock).setBlockHardness(1.5F).setBlockResistance(1.5F).setName("block.stone_bricks");
@@ -64,6 +70,13 @@ public class mod_Example extends BaseMod {
 		// Substitute the original golden pickaxe:
 		Item.pickaxeGold = itemSilkTouchGoldenPickaxe;
 		Item.itemsList[Item.pickaxeGold.shiftedIndex] = itemSilkTouchGoldenPickaxe;
+		
+		// New food
+		itemFoodRawChicken = new ItemFoodRawChicken(ModLoader.getItemId(), 0);
+		itemFoodRawChicken.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_chicken_raw.png"));
+		
+		itemFoodCookedChicken = new ItemFoodCookedChicken(ModLoader.getItemId(), 10);
+		itemFoodCookedChicken.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_chicken_cooked.png"));
 		
 		ModLoader.addRecipe(new ItemStack(blockStoneBricks, 4), new Object [] {
 			"XX", "XX",
@@ -110,6 +123,10 @@ public class mod_Example extends BaseMod {
 		ModLoader.addSmelting(Block.cobblestone.blockID, Block.stone.blockID);
 		
 		ModLoader.addSmelting(Item.ingotIron.shiftedIndex, itemSteelIngot.shiftedIndex);
+		
+		ModLoader.addSmelting(itemFoodRawChicken.shiftedIndex, itemFoodCookedChicken.shiftedIndex);
+		
+		statusPoisoned = new StatusPoisoned(Status.getNewStatusId(), true);
 	}
 	
 	public void hookGenerateStructures (LevelGenerator levelGenerator, World world) {
@@ -120,12 +137,13 @@ public class mod_Example extends BaseMod {
 		minecraft.thePlayer.inventory.setInventorySlotContents(0, new ItemStack(Block.stoneOvenIdle, 1));
 		minecraft.thePlayer.inventory.setInventorySlotContents(1, new ItemStack(Block.workbench, 1));
 		minecraft.thePlayer.inventory.setInventorySlotContents(2, new ItemStack(Item.coal, 64));
-		minecraft.thePlayer.inventory.setInventorySlotContents(3, new ItemStack(Block.cobblestone, 64));
-		minecraft.thePlayer.inventory.setInventorySlotContents(4, new ItemStack(itemPebble, 64));
-		minecraft.thePlayer.inventory.setInventorySlotContents(5, new ItemStack(itemSteelSword, 1));
-		minecraft.thePlayer.inventory.setInventorySlotContents(6, new ItemStack(itemSteelPickaxe, 1));
-		minecraft.thePlayer.inventory.setInventorySlotContents(7, new ItemStack(Item.pickaxeGold, 1));
-		minecraft.thePlayer.inventory.setInventorySlotContents(8, new ItemStack(itemSteelIngot, 64));
+		minecraft.thePlayer.inventory.setInventorySlotContents(3, new ItemStack(itemFoodRawChicken, 10));
+		minecraft.thePlayer.inventory.setInventorySlotContents(9, new ItemStack(Block.cobblestone, 64));
+		minecraft.thePlayer.inventory.setInventorySlotContents(10, new ItemStack(itemPebble, 64));
+		minecraft.thePlayer.inventory.setInventorySlotContents(11, new ItemStack(itemSteelSword, 1));
+		minecraft.thePlayer.inventory.setInventorySlotContents(12, new ItemStack(itemSteelPickaxe, 1));
+		minecraft.thePlayer.inventory.setInventorySlotContents(13, new ItemStack(Item.pickaxeGold, 1));
+		minecraft.thePlayer.inventory.setInventorySlotContents(14, new ItemStack(itemSteelIngot, 64));
 	}
 	
 	public boolean hookOnBlockHarvested (Minecraft minecraft, World world, int x, int y, int z, int blockID, int metadata) {

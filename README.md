@@ -1726,3 +1726,187 @@ and
     });
 ```
 
+## Food
+
+Food items can be eaten and restore health. They extend `ItemFood` and call the constructor with `itemID, healAmount`. `healAmount` is expressed in half hearts. The base `ItemFood` class overrides the `onItemRightClick` method with this code:
+
+```java
+    public ItemStack onItemRightClick(ItemStack var1, World var2, EntityPlayer var3) {
+        --var1.stackSize;
+        var3.heal(this.healAmount);
+        return var1;
+    }    
+```
+
+`ItemSoup`, which extends `ItemFood`, in turns overrides it as well with this:
+
+```java
+    public ItemStack onItemRightClick(ItemStack var1, World var2, EntityPlayer var3) {
+        super.onItemRightClick(var1, var2, var3);
+        return new ItemStack(Item.bowlEmpty);
+    }
+```
+
+So getting new food to Indev is pretty straightforward. If you can do with any of these implementations, just make a new food item using one of those classes. If you need further customization, extend from `ItemFood` and override `onItemRightClick`, modifying the `ItemStack` as needed. Note how you get the itemstack, the world, and the player entity. There's plenty of stuff you can do with those. For example, you could get poisoned if you ate raw chicken - but in Indev the player can't be poisoned.
+
+It would be cool to add this status to the player entity and also have raw chicken or rotten flesh activate it in Indev. Let's see how we could get this to work.
+
+In minecraft 1.2.5 this is implemented with potions. Items have a `setPotionEffect` method to set a `potionEffect` attribute. Items here have an `onFoodEaten` method which call `EntityPlayer`'s `addPotionEffect` if any potion effect. This adds the potion to `activePotionsMap`.
+
+Each `EntityLiving` call to `updatePotionEffects` in `onEntityUpdate`. This method iterates the `activePotionsMap` and call each `potionEffect` `opUpdate` method which will return `false` if the effect has finished. This causes a call to `onFinishedPotionEffect`. 
+
+`PottionEffect`'s `onUpdate` method does the magic: it decrease the duration of the effect. If duration > 0 it calls the `Potion`'s `isReady` method (which does some trickery with time ticks) and if it is, calls `Potion`'s `performEffect` which acts depending on the potion id. For the `hunger` effect, it just adds exhaustion to the player.
+
+It would be great including something simmilar but avoiding potions - player's status. I could code all the needed classes and include them with modloader, then patch the base classes here and there, and have items which poison the player or give it extra abilities.
+
+Yeah I added some stuff:
+
+* `net.minecraft.game.entity.EntityLiving.Status` - extend from this class to make your status. We'll be using this to create the "poisoned" status. 
+* `net.minecraft.game.entity.EntityLiving.StatusEffect` - the actual effect of the status, which controls the duration and an amplifier. You create an instance of this class and then add it to the entity.
+* Additions to `EntityLiving` so you can add statuses. In each tick, the active `StatusEffect`s are iterated and run. This will decrease their duration, and then call the associated `Status`' `performEffect` method if `isReady` returns true. I've also added code so the status effects are saved alongside entities in the level.
+
+We will eventually patch the main classes more and more to provide hooks that can be used for new, more complex statuses.
+
+### Let's play
+
+So let's add a *poisoned* status to our game...
+
+```java 
+    package com.mojontwins.modloader.entity.status;
+
+    import net.minecraft.game.entity.Entity;
+    import net.minecraft.game.entity.EntityLiving;
+    import net.minecraft.game.entity.monster.EntityZombie;
+
+    public class StatusPoisoned extends Status {
+        public StatusPoisoned(int id, boolean isBadEffect) {
+            super(id, true);
+        }
+
+        public void performEffect (EntityLiving entityLiving, int amplifier) {
+            // Decrease half a heart
+            if (entityLiving.health > 1) {
+                entityLiving.attackEntityFrom((Entity)null, 1);
+            }
+        }
+        
+        public boolean isReady (int tick, int amplifier) {
+            // Run every 5 ticks
+            return (tick % 5) == 0;
+        }
+        
+        public boolean isApplicableTo (EntityLiving entityLiving) {
+            // Zombies can't be poisoned
+            return !(entityLiving instanceof EntityZombie);
+        }
+    }
+```
+
+Instantiate it in `mod_Example.load`:
+
+```java
+    statusPoisoned = new StatusPoisoned(Status.getNewStatusId(), true);
+```
+
+Now we have to add a new `ItemFood` `ItemFoodRawChicken` with a custom `onItemRightClick` which activates the `statusPoisoned` status. Of course there will be absolutely no way to get Chicken food in this game... yet. But anyway.
+
+```java
+    package com.mojontwins.modloader;
+
+    import com.mojontwins.modloader.entity.status.StatusEffect;
+
+    import net.minecraft.game.entity.player.EntityPlayer;
+    import net.minecraft.game.item.ItemFood;
+    import net.minecraft.game.item.ItemStack;
+    import net.minecraft.game.level.World;
+
+    public class ItemFoodRawChicken extends ItemFood {
+        public String name;
+
+        public ItemFoodRawChicken(int itemID, int healAmount) {
+            super(itemID, healAmount);
+        }
+
+        public ItemStack onItemRightClick(ItemStack itemStack, World world, EntityPlayer entityPlayer) {
+            itemStack.stackSize --;
+
+            // Add status `poisoned` to player which lasts 50 ticks - that means a total of 5 hearts less
+            entityPlayer.addStatusEffect(new StatusEffect(mod_Example.statusPoisoned.id, 50, 1));
+            
+            return itemStack;
+        }
+        
+        public ItemFoodRawChicken setName (String name) {
+            this.name = name;
+            return this;
+        }
+    }
+
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.entity.player.EntityPlayer;
+    import net.minecraft.game.item.ItemFood;
+    import net.minecraft.game.item.ItemStack;
+    import net.minecraft.game.level.World;
+
+    public class ItemFoodCookedChicken extends ItemFood {
+        public String name;
+
+        public ItemFoodCookedChicken(int itemID, int healAmount) {
+            super(itemID, healAmount);
+        }
+
+        public ItemStack onItemRightClick(ItemStack itemStack, World world, EntityPlayer entityPlayer) {
+            // Remove poisoned status
+            entityPlayer.removeStatusEffect(mod_Example.statusPoisoned.id);
+            
+            return super.onItemRightClick(itemStack, world, entityPlayer);
+        }
+        
+        public ItemFoodCookedChicken setName (String name) {
+            this.name = name;
+            return this;
+        }
+    }
+```
+
+Create the items in `mod_Example`, assign graphics, add a smelting recipe, and give ourselves some raw chicken to test.
+
+```java
+    [...]
+
+    public static ItemFoodRawChicken itemFoodRawChicken;
+    public static ItemFoodCookedChicken itemFoodCookedChicken;
+
+    public void load () throws Exception {
+
+        [...]
+
+        // New food
+        itemFoodRawChicken = new ItemFoodRawChicken(ModLoader.getItemId(), 0);
+        itemFoodRawChicken.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_chicken_raw.png"));
+        
+        itemFoodCookedChicken = new ItemFoodCookedChicken(ModLoader.getItemId(), 10);
+        itemFoodCookedChicken.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_chicken_cooked.png"));
+
+        [...]
+
+        ModLoader.addSmelting(itemFoodRawChicken.shiftedIndex, itemFoodCookedChicken.shiftedIndex);
+
+    }
+
+    public void hookGameStart (Minecraft minecraft) {
+        minecraft.thePlayer.inventory.setInventorySlotContents(0, new ItemStack(Block.stoneOvenIdle, 1));
+        minecraft.thePlayer.inventory.setInventorySlotContents(1, new ItemStack(Block.workbench, 1));
+        minecraft.thePlayer.inventory.setInventorySlotContents(2, new ItemStack(Item.coal, 64));
+        minecraft.thePlayer.inventory.setInventorySlotContents(3, new ItemStack(itemFoodRawChicken, 10));        
+
+        [...]
+    }
+
+    [...]
+``` 
+
+TODO - Prevent eating food when right-clicking tile entities!
+
+Next: adding some visual indicator for status effects!

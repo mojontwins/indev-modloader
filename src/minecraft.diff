@@ -220,6 +220,149 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/tileentity/TileEnt
          if (var0 == Block.oreIron.blockID) {
              return Item.ingotIron.shiftedIndex;
          } else if (var0 == Block.oreGold.blockID) {
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/EntityLiving.java MCP-LTS/src/minecraft/net/minecraft/game/entity/EntityLiving.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/EntityLiving.java	2021-11-10 11:11:52.545578000 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/entity/EntityLiving.java	2021-11-15 16:17:48.547561200 +0100
+@@ -1,6 +1,12 @@
+ package net.minecraft.game.entity;
+ 
+ import com.mojang.nbt.NBTTagCompound;
++import com.mojontwins.modloader.entity.status.Status;
++import com.mojontwins.modloader.entity.status.StatusEffect;
++
++import java.util.Collection;
++import java.util.HashMap;
++import java.util.Iterator;
+ import java.util.List;
+ import net.minecraft.game.block.Block;
+ import net.minecraft.game.block.StepSound;
+@@ -35,6 +41,9 @@
+     protected boolean isJumping;
+     private float defaultPitch;
+     protected float moveSpeed;
++    
++    // Added by ModLoader: status effects
++    protected HashMap<Integer,StatusEffect> activeStatusEffectsMap;
+ 
+     public EntityLiving(World var1) {
+         super(var1);
+@@ -50,6 +59,9 @@
+         Math.random();
+         this.rotationYaw = (float)(Math.random() * 3.1415927410125732D * 2.0D);
+         this.stepHeight = 0.5F;
++        
++        // Added by Modloader: status effects
++        activeStatusEffectsMap = new HashMap<Integer,StatusEffect>();
+     }
+ 
+     public final String getTexture() {
+@@ -199,6 +211,10 @@
+         }
+ 
+         this.prevRotationYawHead += var5;
++        
++        
++        // Added by ModLoader: status effects
++        this.updateStatusEffects ();
+     }
+ 
+     protected final void setSize(float var1, float var2) {
+@@ -314,6 +330,20 @@
+         var1.setShort("HurtTime", (short)this.hurtTime);
+         var1.setShort("DeathTime", (short)this.deathTime);
+         var1.setShort("AttackTime", (short)this.attackTime);
++        
++        // Added by ModLoader: status effects
++        var1.setShort("statusEffects", (short)this.activeStatusEffectsMap.size());
++        
++        Iterator<Integer> it = activeStatusEffectsMap.keySet().iterator ();
++        int counter = 0;
++    	while (it.hasNext()) {
++    		Integer statusID = it.next();
++    		StatusEffect statusEffect = (StatusEffect) activeStatusEffectsMap.get(statusID);
++    		var1.setShort("statusEffect_" + counter + "_statusID", (short)statusEffect.statusID);
++    		var1.setShort("statusEffect_" + counter + "_duration", (short)statusEffect.duration);
++    		var1.setShort("statusEffect_" + counter + "_amplifier", (short)statusEffect.amplifier);
++    		counter ++;
++    	}
+     }
+ 
+     protected void readEntityFromNBT(NBTTagCompound var1) {
+@@ -325,6 +355,17 @@
+         this.hurtTime = var1.getShort("HurtTime");
+         this.deathTime = var1.getShort("DeathTime");
+         this.attackTime = var1.getShort("AttackTime");
++        
++        // Added by ModLoader: status effects
++        this.activeStatusEffectsMap.clear();
++        int counter = var1.getShort("statusEffects");
++        for (int i = 0; i < counter; i ++) {
++        	int statusID = (int)var1.getShort("statusEffect_" + i + "_statusID");
++        	int duration = (int)var1.getShort("statusEffect_" + i + "_duration");
++        	int amplifier = (int)var1.getShort("statusEffect_" + i + "_amplifier");
++        	StatusEffect statusEffect = new StatusEffect(statusID, duration, amplifier);
++        	activeStatusEffectsMap.put(Integer.valueOf(statusID), statusEffect);
++        }
+     }
+ 
+     protected String getEntityString() {
+@@ -459,4 +500,56 @@
+         this.setPosition(var1, var2 + this.height / 2.0F, var3);
+         return this.worldObj.checkIfAABBIsClear1(this.boundingBox) && this.worldObj.getCollidingBoundingBoxes(this.boundingBox).size() == 0 && !this.worldObj.getIsAnyLiquid(this.boundingBox);
+     }
++    
++    // Added by ModLoader: status effects
++    public void updateStatusEffects () {
++    	Iterator<Integer> it = activeStatusEffectsMap.keySet().iterator ();
++    	
++    	while (it.hasNext()) {
++    		Integer statusID = it.next();
++    		StatusEffect statusEffect = (StatusEffect) activeStatusEffectsMap.get(statusID);
++    		
++    		// Status effect will return false when duration has run out
++    		if (!statusEffect.onUpdate(this)) {
++    			it.remove ();
++    		}
++    	}
++    }
++    
++    public void removeStatusEffect (int id) {
++    	if (activeStatusEffectsMap.containsKey(id)) {
++    		activeStatusEffectsMap.remove(id);
++    	}
++    }
++    
++    public void clearActiveStatusEffects() {
++    	Iterator<Integer> it = activeStatusEffectsMap.keySet().iterator ();
++    	
++    	while (it.hasNext()) {
++    		it.next();
++     		it.remove ();
++    	}
++    }
++    
++    public Collection<StatusEffect> getActiveStatusEffects() {
++        return activeStatusEffectsMap.values();
++    }    
++    
++    public boolean isStatusActive(Status status) {
++        return activeStatusEffectsMap.containsKey(Integer.valueOf(status.id));
++    }  
++    
++    public StatusEffect getActiveStatusEffect(Status status) {
++        return (StatusEffect)activeStatusEffectsMap.get(Integer.valueOf(status.id));
++    }    
++    
++    public void addStatusEffect (StatusEffect statusEffect) {
++    	if (Status.statusTypes[statusEffect.statusID].isApplicableTo(this)) {
++    		if (activeStatusEffectsMap.containsKey(Integer.valueOf(statusEffect.statusID))) {
++    			((StatusEffect)activeStatusEffectsMap.get(Integer.valueOf(statusEffect.statusID))).combine(statusEffect);
++    		} else {
++	    		activeStatusEffectsMap.put(Integer.valueOf(statusEffect.statusID), statusEffect);
++    		}
++    	}
++    }
+ }
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemArmor.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemArmor.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemArmor.java	2021-11-10 11:11:52.670577200 +0100
 +++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemArmor.java	2021-11-14 15:04:23.527376400 +0100
