@@ -8,17 +8,28 @@ public class Status {
 	public static int latestId = 0;
 	public boolean isBadEffect;
 	public int id;
+	public int particleColor = 0xFFFFFF;
+	public boolean showParticles = true;
 	
+	/*
+	 * Class constructor needs an id and a boolean isBadEffect.
+	 */
 	public Status(int id, boolean isBadEffect) {
 		this.id = id;
 		this.isBadEffect = isBadEffect;
 		statusTypes [id] = this;
 	}
 	
+	/*
+	 * Handy sequencer you can use to get free Status IDs.
+	 */
 	public static int getNewStatusId () {
 		return (latestId < 256) ? latestId ++ : -1;		
 	}
 
+	/*
+	 * Give it a proper name for the registry
+	 */
     public Status setName(String name) {
     	this.name = name;
     	return this;

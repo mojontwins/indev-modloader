@@ -93,6 +93,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/gui/GuiCrafting.java M
      }
  
      protected final void drawGuiContainerForegroundLayer() {
+Only in MCP-LTS/src/minecraft/net/minecraft/client/particle: EntityStatusEffectFX.java
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/PlayerControllerSP.java MCP-LTS/src/minecraft/net/minecraft/client/player/PlayerControllerSP.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/PlayerControllerSP.java	2021-11-10 11:11:51.983064800 +0100
 +++ MCP-LTS/src/minecraft/net/minecraft/client/player/PlayerControllerSP.java	2021-11-12 13:56:37.865299700 +0100
@@ -171,6 +172,33 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/RenderEngine.
      }
  
      public final void refreshTextures() {
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/RenderGlobal.java MCP-LTS/src/minecraft/net/minecraft/client/renderer/RenderGlobal.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/RenderGlobal.java	2021-11-10 11:11:52.108065400 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/client/renderer/RenderGlobal.java	2021-11-16 09:40:57.608409500 +0100
+@@ -9,10 +9,12 @@
+ import net.minecraft.client.Minecraft;
+ import net.minecraft.client.particle.EntityBubbleFX;
+ import net.minecraft.client.particle.EntityExplodeFX;
++import net.minecraft.client.particle.EntityFX;
+ import net.minecraft.client.particle.EntityFlameFX;
+ import net.minecraft.client.particle.EntityLavaFX;
+ import net.minecraft.client.particle.EntitySmokeFX;
+ import net.minecraft.client.particle.EntitySplashFX;
++import net.minecraft.client.particle.EntityStatusEffectFX;
+ import net.minecraft.client.physics.AxisAlignedBB;
+ import net.minecraft.client.physics.MovingObjectPosition;
+ import net.minecraft.client.renderer.entity.RenderManager;
+@@ -733,6 +735,10 @@
+                 this.mc.effectRenderer.addEffect(new EntityLavaFX(this.worldObj, var2, var3, var4));
+             } else if (var1 == "splash") {
+                 this.mc.effectRenderer.addEffect(new EntitySplashFX(this.worldObj, var2, var3, var4));
++            } else if (var1 == "status_effect") {
++            	EntityStatusEffectFX entityFX = new EntityStatusEffectFX(this.worldObj, var2, var3, var4, 0, 0, 0);
++            	entityFX.setParticleColor(var5, var6, var7);
++            	this.mc.effectRenderer.addEffect(entityFX);            	
+             } else {
+                 if (var1 == "largesmoke") {
+                     this.mc.effectRenderer.addEffect(new EntitySmokeFX(this.worldObj, var2, var3, var4, 2.5F));
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/block/TextureFX.java MCP-LTS/src/minecraft/net/minecraft/client/renderer/block/TextureFX.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/block/TextureFX.java	2021-11-10 11:11:52.139315500 +0100
 +++ MCP-LTS/src/minecraft/net/minecraft/client/renderer/block/TextureFX.java	2021-11-12 09:24:08.946269200 +0100
@@ -256,11 +284,12 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/tileentity/TileEnt
          } else if (var0 == Block.oreGold.blockID) {
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/EntityLiving.java MCP-LTS/src/minecraft/net/minecraft/game/entity/EntityLiving.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/EntityLiving.java	2021-11-10 11:11:52.545578000 +0100
-+++ MCP-LTS/src/minecraft/net/minecraft/game/entity/EntityLiving.java	2021-11-15 16:17:48.547561200 +0100
-@@ -1,6 +1,12 @@
++++ MCP-LTS/src/minecraft/net/minecraft/game/entity/EntityLiving.java	2021-11-16 11:54:05.087626800 +0100
+@@ -1,6 +1,13 @@
  package net.minecraft.game.entity;
  
  import com.mojang.nbt.NBTTagCompound;
++import com.mojontwins.modloader.ModLoader;
 +import com.mojontwins.modloader.entity.status.Status;
 +import com.mojontwins.modloader.entity.status.StatusEffect;
 +
@@ -270,7 +299,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/EntityLiving.java
  import java.util.List;
  import net.minecraft.game.block.Block;
  import net.minecraft.game.block.StepSound;
-@@ -35,6 +41,9 @@
+@@ -35,6 +42,9 @@
      protected boolean isJumping;
      private float defaultPitch;
      protected float moveSpeed;
@@ -280,7 +309,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/EntityLiving.java
  
      public EntityLiving(World var1) {
          super(var1);
-@@ -50,6 +59,9 @@
+@@ -50,6 +60,9 @@
          Math.random();
          this.rotationYaw = (float)(Math.random() * 3.1415927410125732D * 2.0D);
          this.stepHeight = 0.5F;
@@ -290,7 +319,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/EntityLiving.java
      }
  
      public final String getTexture() {
-@@ -199,6 +211,10 @@
+@@ -199,6 +212,10 @@
          }
  
          this.prevRotationYawHead += var5;
@@ -301,7 +330,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/EntityLiving.java
      }
  
      protected final void setSize(float var1, float var2) {
-@@ -314,6 +330,20 @@
+@@ -314,6 +331,20 @@
          var1.setShort("HurtTime", (short)this.hurtTime);
          var1.setShort("DeathTime", (short)this.deathTime);
          var1.setShort("AttackTime", (short)this.attackTime);
@@ -322,7 +351,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/EntityLiving.java
      }
  
      protected void readEntityFromNBT(NBTTagCompound var1) {
-@@ -325,6 +355,17 @@
+@@ -325,6 +356,17 @@
          this.hurtTime = var1.getShort("HurtTime");
          this.deathTime = var1.getShort("DeathTime");
          this.attackTime = var1.getShort("AttackTime");
@@ -340,18 +369,55 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/EntityLiving.java
      }
  
      protected String getEntityString() {
-@@ -459,4 +500,56 @@
+@@ -375,8 +417,9 @@
+         this.moveStrafing *= 0.98F;
+         this.moveForward *= 0.98F;
+         this.randomYawVelocity *= 0.9F;
+-        var3 = this.moveForward;
+-        var2 = this.moveStrafing;
++        float f = ModLoader.hookEntitySpeedModifier (this);
++        var3 = this.moveForward * f;
++        var2 = this.moveStrafing * f;
+         float var4;
+         if (this.handleWaterMovement()) {
+             var4 = this.posY;
+@@ -459,4 +502,81 @@
          this.setPosition(var1, var2 + this.height / 2.0F, var3);
          return this.worldObj.checkIfAABBIsClear1(this.boundingBox) && this.worldObj.getCollidingBoundingBoxes(this.boundingBox).size() == 0 && !this.worldObj.getIsAnyLiquid(this.boundingBox);
      }
 +    
 +    // Added by ModLoader: status effects
 +    public void updateStatusEffects () {
++    	if (activeStatusEffectsMap.size() == 0) return; 
++    	
 +    	Iterator<Integer> it = activeStatusEffectsMap.keySet().iterator ();
++    	
++    	// This will help me select one effect at random:
++    	int randomEffectCounter = 0;
++    	int randomEffectSelected = this.rand.nextInt(activeStatusEffectsMap.size());    	
 +    	
 +    	while (it.hasNext()) {
 +    		Integer statusID = it.next();
 +    		StatusEffect statusEffect = (StatusEffect) activeStatusEffectsMap.get(statusID);
++    		
++    		// Create a particle? Not perfect but greedy solution which mostly works
++    		if (randomEffectCounter == randomEffectSelected) {
++    			Status status = Status.statusTypes[statusEffect.statusID];
++    			if (status.showParticles) {
++    				int particleColour = status.particleColor;
++
++    				worldObj.spawnParticle(
++    						"status_effect",
++    						posX + (this.rand.nextFloat() - 0.5F) * (float) width, 
++    	                    (posY + this.rand.nextFloat() * (float) height) - (float) yOffset, 
++    	                    posZ + (this.rand.nextFloat() - 0.5F) * (float) width,
++    	                    (float)(particleColour >> 16 & 0xff) / 255F,
++    	                    (float)(particleColour >> 8 & 0xff) / 255F,
++    	                    (float)(particleColour & 0xff) / 255F
++    	                   );
++    			}
++    		}
++    		randomEffectCounter ++;
 +    		
 +    		// Status effect will return false when duration has run out
 +    		if (!statusEffect.onUpdate(this)) {
@@ -684,3 +750,4 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/level/generator/LevelGen
          this.guiLoading.displayLoadingString("Planting..");
          this.loadingBar();
          if (this.levelType != 1) {
+Only in MCP-LTS/src/minecraft: particles.png

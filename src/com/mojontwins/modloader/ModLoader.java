@@ -555,7 +555,16 @@ public class ModLoader {
     public static float HookBlockHitStrengthModifier (EntityLiving entityLiving, Block block, float strength) {
     	float res = strength;
     	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
-        	res = ((BaseMod)iterator.next()).HookAttackStrengthModifier(entityLiving, block, res);
+        	res = ((BaseMod)iterator.next()).HookBlockHitStrengthModifier(entityLiving, block, res);
+        }
+    	return res;   	
+    }
+    
+    // Called to calculate an entity speed modifier. Return 1.0F for no change! 
+    public static float hookEntitySpeedModifier (EntityLiving entityLiving) {
+    	float res = 1.0F;
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+        	res *= ((BaseMod)iterator.next()).hookEntitySpeedModifier(entityLiving);
         }
     	return res;   	
     }

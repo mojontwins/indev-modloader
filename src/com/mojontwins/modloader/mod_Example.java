@@ -126,7 +126,8 @@ public class mod_Example extends BaseMod {
 		
 		ModLoader.addSmelting(itemFoodRawChicken.shiftedIndex, itemFoodCookedChicken.shiftedIndex);
 		
-		statusPoisoned = new StatusPoisoned(Status.getNewStatusId(), true);
+		statusPoisoned = new StatusPoisoned(Status.getNewStatusId(), true).setName("status.poisoned");
+		statusPoisoned.particleColor = 0x70B433;
 	}
 	
 	public void hookGenerateStructures (LevelGenerator levelGenerator, World world) {
