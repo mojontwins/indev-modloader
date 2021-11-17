@@ -2629,3 +2629,19 @@ Use this in `mod_Example` to grow waterlilies:
     } 
 ```
 
+# Tile entities
+
+Little information is stored in the World about blocks: just blockID and some metadata. This will not suffice when you expect more of a block - think about chests or furnaces. Those need more stuff to them. Minecraft implements this using Tile Entities, which are special entitiles which are related to a block in the world. When you place a furnace block in the world, a related tile entity is spawned in the same coordinates. You interact with it through the associated block. The tile entity for the furnace is cooking or smelting while you do your thing, and if you want to put or extract objects you right-click the related object and are given access to a GUI which actually shows and modifies vaules in the tile entity.
+
+We need to provide the means to manage tile entities with ModLoader. But before I even start checking what Risugami's does, we'll design a rather simple tile entity. So simple that it doesn't even have a gui.
+
+## The silly box
+
+The silly box is just a box where you can store an item. It behaves this way:
+
+* Then the silly block is placed, the silly tile entity will be spawned.
+* If you right click it, it will drop the object it is containing.
+* If you have an item in your hand when doing so, such item will get inside the box.
+* When harvested, it will drop the related block and the contents and the tile entity will be despawned.
+
+So simple. So we need to create a class for this new block, and then implement the related tile entity, and once we have everything in place, I'll reserarch how to implement it into the game.

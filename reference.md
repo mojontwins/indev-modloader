@@ -1,4 +1,4 @@
-# Basic stuff
+# General stuff
 
 To create a mod using ModLoader, you have to create a new class called `mod_YourNameHere` which extends `BaseMod`, then place all your initialization stuff in a `load` method.
 
@@ -249,7 +249,9 @@ Normally you can't place blocks over water 'cause water is not detected by the r
 
 ```
 
-In our mod class, we add the block as follows:
+This overrides completely how Minecraft behaves normally. It will do its own thing when you right-click with a Lilypad in the player's hand. It will ask the engine what's under the cursor. If it happens to be still water and there's air on top of it, it will place a Lillypad in the world.
+
+In our mod class, we add the block as follows - note the call to `registerBlock`:
 
 ```java
     public static ModBlock blockLilypad;
@@ -260,20 +262,372 @@ In our mod class, we add the block as follows:
     blockLilypad = new BlockLilypad (ModLoader.getBlockId()).setName("block.lilypad");
     blockLilypad.blockIndexInTexture = ModLoader.addOverride (EnumTextureAtlases.TERRAIN, "textures/block_lilypad.png");
     ModLoader.registerBlock(blockLilypad, ItemLilypad.class);
-    blockLilypadRenderID = ModLoader.getUniqueBlockModelID(this, true);     
+    blockLilypadRenderID = ModLoader.getUniqueBlockModelID(this, false);     
+```
+
+Note also how we load and assign a texture to the block *before* we register it - this is because registering the block creates the related item, and its constructor just copies the block's `blockIndexInTexture` to the new item's `iconIndex`, so it must have a proper value beforehand.
+
+The last line asks `ModLoader` for a new, unique render ID for the custom renderer we are just going to add. Note how `BlockLilypad.getRenderType` returns exactly this value: `mod_Example.blockLilypadRenderID`.
+
+`getUniqueBlockModelID` takes two parameter: the `BaseMod` instance (i.e. `this`), and a boolean telling the engine that the item should be rendered in full-3D when it's being drawn into the inventory or the player's hand. By default, if you pass a `false`, the engine will draw the texture in 2D for the inventory and an extruded "2D in 3D" version of it when it's on the player's hand. If you pass `true`, you'll have to write a proper renderer for it in `renderInvBlock`.  The default behaviour will suffice for lilypads.
+
+So what's left is overriding `BaseMod.renderWorldBlock` and write a proper renderer. This one has been adapted from r1.2.5:
+
+```java
+    public boolean renderWorldBlock(RenderBlocks renderblocks, World world, int x, int y, int z, Block block, int renderType) {
+        Tessellator tessellator = Tessellator.instance;
+        
+        if (renderType == blockLilypadRenderID) {
+            float b = block.getBlockBrightness(world, x, y, z);
+            tessellator.setColorOpaque_F(b, b, b);
+            
+            return this.renderBlockLilypad (block, (float)x, (float)y, (float)z);
+        }
+        return false;
+    }
+    
+    public boolean renderBlockLilypad(Block block, float par2, float par3, float par4)
+    {
+        Tessellator tessellator = Tessellator.instance;
+        int i = block.blockIndexInTexture;
+
+        int j = (i & 0xf) << 4;
+        int k = i & 0xff0;
+        
+        float f = 0.015625F;
+        
+        float d = (float)j / 256F;
+        float d1 = ((float)j + 15.99F) / 256F;
+        float d2 = (float)k / 256F;
+        float d3 = ((float)k + 15.99F) / 256F;
+        
+        long l = (long)(par2 * 0x2fc20f) ^ (long)par4 * 0x6ebfff5L ^ (long)par3;
+        l = l * l * 0x285b825L + l * 11L;
+        int i1 = (int)(l >> 16 & 3L);
+        
+        float f1 = (float)par2 + 0.5F;
+        float f2 = (float)par4 + 0.5F;
+        float f3 = (float)(i1 & 1) * 0.5F * (float)(1 - (i1 & 2));
+        float f4 = (float)(i1 + 1 & 1) * 0.5F * (float)(1 - ((i1 + 1) & 2));
+        
+        tessellator.addVertexWithUV((f1 + f3) - f4, (float)par3 + f, f2 + f3 + f4, d, d2);
+        tessellator.addVertexWithUV(f1 + f3 + f4, (float)par3 + f, (f2 - f3) + f4, d1, d2);
+        tessellator.addVertexWithUV((f1 - f3) + f4, (float)par3 + f, f2 - f3 - f4, d1, d3);
+        tessellator.addVertexWithUV(f1 - f3 - f4, (float)par3 + f, (f2 + f3) - f4, d, d3);
+        tessellator.addVertexWithUV(f1 - f3 - f4, (float)par3 + f, (f2 + f3) - f4, d, d3);
+        tessellator.addVertexWithUV((f1 - f3) + f4, (float)par3 + f, f2 - f3 - f4, d1, d3);
+        tessellator.addVertexWithUV(f1 + f3 + f4, (float)par3 + f, (f2 - f3) + f4, d1, d2);
+        tessellator.addVertexWithUV((f1 + f3) - f4, (float)par3 + f, f2 + f3 + f4, d, d2);
+        return true;
+    }
+```
+
+As mentioned, `renderInvBlock` will not be used unless you pass `true` to `getUniqueBlockModelID`. In such case, this general implementation works most of the time, as the methods which draw the block in the inventory / hand set the origin of coordinates in the center of where it should appear, and the *measures* are 1.0Fx1.0Fx1.0F. (not needed for lillypads, but useful for stuff like fences). The `this.renderBlah` method would be the very same method called from `renderWorldBlock`:
+
+```java
+    public void renderInvBlock(RenderBlocks renderblocks, Block block, int renderType) {
+        Tessellator tessellator = Tessellator.instance;
+
+        if (renderType == blockBlahRenderID) {
+            tessellator.startDrawingQuads();
+            Tessellator.setNormal(0.0F, -1.0F, 0.0F);
+            this.renderBlockBlah(block, -0.5F, -0.5F, -0.5F);
+            tessellator.draw();
+        }
+    }
 ```
 
 ## New Items
 
+Items are way simpler to put into your game. Just create an object of the class `ModItem`, or a class extending `ModItem`, and give it some properties & attributes. As with blocks, you can use the built-in sequencer for Item IDs or you can use your own magic numbers. Also, don't forget to give your stuff names so it gets properly registered. 
+
+Tools are based on a material and a type. Upon those parameters, they can be used more or less effectively in the world and entities.
+
+```java
+    public static ModItem itemPebble;
+
+    [...]
+
+    itemPebble = new ModItem(ModLoader.getItemId()).setMaxStackSize(64).setName("item.pebble");
+    itemPebble.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_pebble.png"));
+```
+
 ### Tools & weapons
+
+Tools and weapons are special items. You can extend the existing ItemPickaxe, ItemSword, ItemAxe, ItemHoe or ItemSpade, or even create your own. 
+
+The classes `ItemAxe`, `ItemPickaxe` and `ItemSpade` all extend the base `ItemTool` class - *note how `ItemSword` and `ItemHoe` don't*. Here's the constructor:
+
+```java
+    public ItemTool(int var1, int var2, int var3, Block[] var4)
+```
+
+Where
+    * `var1` is the ID (get's passed on to `super` which is `Item`).
+    * `var2` seems to be a base damage value when hitting entities. Get's added to `var3` to make `damageVsEntity`.
+    * `var3` seems to be the hardness, and is usually 0 for wood, 1 for rock, 2 for steel and 3 for diamond. It's used to calculate `maxDamage` or how many times you can use the tool ?
+    * `var4` is an array of blocks which gets copied to `blocksEffectiveAgainst`.
+
+`blocksEffectiveAgainst` is a list of blocks the tool is good at breaking. If the block being hit is in the list, the strength applied is `(var3 + 1) * 2`, this is, 2.0F for wood, 4.0F for stone, 6.0F for steel and 8.0F for diamond. It it's not, the strength is 1.0F.
+
+#### `ItemPickAxe`
+
+The constructor has three parameters equivalent to the above `var1`, `var3` and `var4`. `var2` is set to `2`, so `damageVsEntity` happens to be `2 + var3`. The class has its own attribute `harvestLevel` which is also set to the value of `var3` (the 2nd parameter in the `ItemPickAxe` constructor) which is later used to calculate if the tool can harvest certain ores.
+
+Sadly, the method `canHarvestBlock` is marked `final` which is just plain shyte. If I want to make my own tools, it would be great to be able to redefine this method. *So I'm removing the `final` modifier here as well*. Sorry but not sorry.
+
+Finally, `blocksEffectiveAgainst` is set to everything rocky or stoney in the game.
+
+Now we can extend `ItemPickAxe` to create our own pickaxes.
+
+#### `ItemAxe`
+
+This one is much simpler. It sets `ItemTool`'s constructor `var2` to 3 so `damageVsEntity` is `3 + var3` - Axes are stronger than Pickaxes against mobs. Appart from that, `blocksEffectiveAgainst` contains everything that's made of wood.
+
+#### `ItemSpade`
+
+Same as `ItemAxe`, but with `var2` set to 1 and affective agains grass, sand, dirt and gravel.
+
+#### `ItemSword`
+
+As mentioned, is not considered a tool, at least in the class hyerarchy. And the reason why is "because", as it could have been implemented as a `ItemTool`. Maybe there's a obscure reason I can't understand. Maybe it's because `ItemTool` methods are `final`.  `ItemSword`'s are also `final`. *I'm removing all `final`s!*.
+
+Swords just take two parameters: the ID and a `var2` parameter which is used for `maxDamage` (`32 << var2`) and `weaponDamage` (4 + (var2 << 1)). `weaponDamage` is used as a returning value for `getDamageVsEntity`, so the sword causes a damage of 6, 8, 10 or 12 depending on its material.
+
+#### `ItemHoe`
+
+Hoes have code to plow land - that is, they override `onItemUse`.
+
+#### Creating new tools 
+
+Let's try and create a couple of steel tools: a steel pickaxe and a steel sword. We'll be using new classes which will extend base classes. We'll set all the custom values there.
+
+Tool duration and tool strength are very crudely configured from the original constructors, so we will be overriding the values explictly. Let's begin with our steel pickaxe. I want the new steel pickaxe to be as strong as the iron pickaxe but 1.5 times as durable, and let's say 1.5 times faster too. Remember that the `ItemPickaxe` constructor can be expressed as:
+
+```java
+    ItemPickaxe (int itemID, int hardness);
+```
+
+and that `hardness` is 0 for wood and gold, 1 for stone, 2 for iron and 3 for diamond and is used to calculate several things:
+
+* `harvestLevel`, the same value.
+* `maxDamage`, equals `32 << hardness`, tool duration.
+* `efficiencyOnProperMaterial` is `(hardness + 1) * 2`.
+* `damageVsEntity` which is `2 + hardness` for pickaxes.
+
+So we can extend from `ItemPickaxe`, call the `super` constructor with hardness = 2 (which means `iron`), and then recalculate `maxDamage` and `efficiencyOnProperMaterial`. 
+
+* `maxDamage` for iron would be `32 << 2` = 256. 1.5 times more durable would be 384.
+* `efficiencyOnProperMaterial` is `(2 + 1) * 2` = 6.0F, 1.5 times as fast would be 9.0F.
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.item.ItemPickaxe;
+
+    public class ItemSteelPickaxe extends ItemPickaxe {
+        public String name;
+        
+        public ItemSteelPickaxe(int itemID) {
+            super (itemID, 2);
+            maxDamage = 384;
+            efficiencyOnProperMaterial = 9.0F;
+            maxStackSize = 1;
+        }
+        
+        public ItemSteelPickaxe setName(String name) {
+            this.name = name;
+            return this;
+        }   
+    }
+```
+
+Our new steel sword should be 1.5 as durable as an iron sword and also 1.5 times more powerful. The `ItemSword` constructor can be expressed as
+
+```java
+    ItemSword (int itemID, int hardness);
+```
+
+Again, `hardness` is 0 for wood and gold, 1 for stone, 2 for iron and 3 for diamond and is used to calculate several things:
+
+* `maxDamage` is `32 << hardness`, tool duration.
+* `weaponDamage` is `4 + hardness * 2` (integer value).
+
+That way we can extend from `ItemSword`, call the `super` constructor with hardness = 2 (in fact this doesn't matter in this case as we'll be overwriting everything!) and then recalculate `maxDamage` and `weaponDamage`:
+
+* `maxDamage` for iron would be `32 << 2` = 256. 1.5 times more durable would be 384.
+* `weaponDamage` would be `4 + 2 * 2` = 8. 1.5 times is 12.
+
+```java 
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.item.ItemSword;
+
+    public class ItemSteelSword extends ItemSword {
+        public String name;
+        
+        public ItemSteelSword(int itemID) {
+            super (itemID, 2);
+            maxDamage = 384;
+            weaponDamage = 12;
+            maxStackSize = 1;
+        }
+        
+        public ItemSteelSword setName(String name) {
+            this.name = name;
+            return this;
+        }   
+    }
+```
+
+Now add the items to mod_Example:
+
+```java
+    public static ItemSword itemSteelSword;
+    public static ItemPickaxe itemSteelPickaxe;
+```
+
+```java
+    itemSteelSword = new ItemSteelSword(ModLoader.getItemId()).setName("item.steel_sword");
+    itemSteelSword.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_sword.png"));
+    
+    itemSteelPickaxe = new ItemSteelPickaxe(ModLoader.getItemId()).setName("item.steel_pickaxe");
+    itemSteelPickaxe.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_pickaxe.png"));
+```
+
+All that's left is being able to craft these new tools. Check *Smelting and Crafting* below.
 
 ### Armor
 
+
+
 ### Food
+
+# Smelting and crafting
 
 # Playing around
 
-## Substituting an existing standard item
+## Substituting an existing standard item AKA silk touch golden pickaxe
+
+Just for fun, Let's subtitute the useless golden pickaxe for a silk touch pickaxe which just breaks the block but returns the original block untouched.
+
+This is how Indev works:
+
+* When you use your tool on a block and you break it, `PlayerControllerSP.sendBlockRemoved (int x, int y, int z)` is called.
+* There, the block previously on (x, y, z) is retrieved and its `onBlockDestroyedByPlayer` is called, which does nothing except for blocks of class `BlockCrops`, `BlockFire` and `BlockTNT`.
+* If the player has an item on its hand, such item's `onBlockDestroyed` method is called. This method actually damages tools and swords.
+* If the call to `thePlayer.canHarvestBlock` returns true, the block's `dropBlockAsItem` is called.
+
+`theplayer.canHarvestBlock` works as follows:
+
+* If the block's material is not metal nor rock, it returns true. The block can always be harvested.
+* If it is metal or rock, the held item's `canHarvestBlock` is called and its return value returned.
+
+The `canHarvestBlock` from Items returns false, but is redefined by `ItemPickAxe` as we have seen. So for our new golden pickaxe, first of all, `canHarvestBlock` should always return true. Then we would need to modify `PlayerControllerSP.sendBlockRemoved`, using the hook `hookOnBlockHarvested`. Se below for a detailed list of hooks and further explanations.
+
+Now we have to:
+
+* Create a class for our custom golden pickaxe.
+* Hack into the main items list to *replace* the normal pickaxe with ours.
+* Override `BaseMod`'s `hookOnBlockHarvested` to spawn the same block ID that's been destroyed. We'll copy some code from `Block.dropBlockAsItemWithChance`.
+
+So this is our custom golden pickaxe:
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.item.ItemPickaxe;
+
+    public class ItemSilkTouchGoldenPickaxe extends ItemPickaxe {
+        public String name;
+
+        public ItemSilkTouchGoldenPickaxe(int itemID) {     
+            super(itemID, 1);
+            
+            // Make it faster than stone
+            efficiencyOnProperMaterial = 9.0F;
+            
+            // Only can stack 1 per slot
+            maxStackSize = 1;
+        }
+
+        // Override canHarvestBlock so we can harvest anything
+        public boolean canHarvestBlock (Block var1) {
+            return true;
+        }
+        
+        // Override getStrVsBlock so it's always as efficient
+        public float getStrVsBlock(Block var1) {
+            return efficiencyOnProperMaterial;
+        }
+        
+        public ItemSilkTouchGoldenPickaxe setName(String name) {
+            this.name = name;
+            return this;
+        }   
+    }
+```
+
+Let's define and instantiate it in our `mod_Example` class...
+
+```java
+    public static ItemPickaxe itemSilkTouchGoldenPickaxe;
+```
+
+```java
+    itemSilkTouchGoldenPickaxe = new ItemSilkTouchGoldenPickaxe(ModLoader.getItemId()).setName("item.silk_touch_golden_pickaxe");
+    itemSilkTouchGoldenPickaxe.setIconIndex(Item.pickaxeGold.getIconIndex());
+```
+
+Note how we are reusing the original golden pickaxe texture. And now there comes the hacky part:
+
+```java
+    // Substitute the original golden pickaxe:
+    Item.pickaxeGold = itemSilkTouchGoldenPickaxe;
+    Item.itemsList[Item.pickaxeGold.shiftedIndex] = itemSilkTouchGoldenPickaxe;
+```
+
+Now we'll add the actual hook code. For a first test we add this simple stub:
+
+```java
+    public boolean hookOnBlockHarvested (Minecraft minecraft, World world, int x, int y, int z, int blockID, int metadata) {
+        System.out.println ("BIMMM!");
+        return true;
+    }   
+```
+
+Everytime you break a block it will be logged in the console, but nothing else will happen (well, the block is broken, but nothing spawns)
+
+Now we give ourselves a golden pickaxe and test:
+
+```java
+    minecraft.thePlayer.inventory.setInventorySlotContents(7, new ItemStack(Item.pickaxeGold, 1));
+```
+
+It works, so let's do something in `hookOnBlockHarvested`: We detect if the tool used is the golden pickaxe and, if so, we spawn a new block item with the same blockID and return true; otherwise we return false and let the engine do its thing:
+
+```java
+    public boolean hookOnBlockHarvested (Minecraft minecraft, World world, int x, int y, int z, int blockID, int metadata) {
+        ItemStack curItem = minecraft.thePlayer.inventory.getCurrentItem();
+        if (curItem != null) {
+            if (curItem.itemID == Item.pickaxeGold.shiftedIndex) {
+                
+                // This code is lifted from `Block.dropBlockAsItemWithChance`
+                float px = world.random.nextFloat() * 0.7F + 0.15F;
+                float py = world.random.nextFloat() * 0.7F + 0.15F;
+                float pz = world.random.nextFloat() * 0.7F + 0.15F;
+                EntityItem entityItem = new EntityItem(world, (float)x + px, (float)y + py, (float)z + pz, new ItemStack(blockID));
+                entityItem.delayBeforeCanPickup = 10;
+                world.spawnEntityInWorld(entityItem);
+                
+                return true;
+            }
+        }
+        
+        return false;
+    }   
+```
 
 # Status effects
 
@@ -488,7 +842,6 @@ For example, you can grow lilypads on water:
         }
     } 
 ```
-
 
 ## `hookGameStart`
 
