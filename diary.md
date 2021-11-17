@@ -239,7 +239,7 @@ A similar method to retrieve a free blockID is easier, as block IDs are free fro
 
 The next problem we must face is the fact that most block attributes modifier methods are protected. I don't want to edit the base `Block` class if I can avoid it, so I'm creating a `ModBlock` class which inherits from `Block` which re-exports all those methods so you can instantiate them from your mod. Maybe there's a better way but this is where my knowledge of Java ends.
 
-Hell, they are marked as `final` which means I cannot override them! They are not final in the versions I know (b1.7.3, 1.2.5). I guess I'll have to try a different approach with slightly renamed methods. I'm going to try with this class:
+Hell, they are marked as `final` which means I cannot override them! They are not final in the versions I know (b1.7.3, r1.2.5). I guess I'll have to try a different approach with slightly renamed methods. I'm going to try with this class:
 
 ```java
     package com.mojontwins.modloader;
@@ -375,7 +375,7 @@ And...
 
 At least it doesn't crash when I run it ... yet :'-D
 
-And here comes the hard part: overriding the texture. I say hard as I don't fully understand it yet. I think it is done, in 1.2.5, via a `TextureFX`. There are `TextureFX`s in Indev so I'll try and add it that way. Cross yer fingers.
+And here comes the hard part: overriding the texture. I say hard as I don't fully understand it yet. I think it is done, in r1.2.5, via a `TextureFX`. There are `TextureFX`s in Indev so I'll try and add it that way. Cross yer fingers.
 
 The original AddOverride takes two parameters: the texture atlas you want to override (`/terrain.png` or `/gui/items.png`) and an URI to the new texture, which should be a 16x16 file. It then gets a unique texture index for it and then enqueues it to a list which is processed latter. Let's begin with this first part. Step by step is better.
 
@@ -471,7 +471,7 @@ And it compiles, and doesn't crash. Yet. Console output:
 
 ## Actually overriding the texture
 
-All we have done is adding a HashMap to a List. Something has to be done, actually. In Risugami's ModLoader, the method in charge is `registerAllTextureOverrides`, which processes the list and does its magic. In the original ModLoader I'm using as a model (1.2.5), this is done in the `onTick` method which is called from EntityRendererProxy (via a base class edit). Maybe my approach is wrong, we'll see with time, but I guess I can just add a call after my `init` method has run, as all `mod_XXX` classes have been loaded and all `load` methods have been called, thus all overrides are in order. So let's take this path, for the moment. So a new addition to `Minecraft.java` (with a slight modification to what we had before):
+All we have done is adding a HashMap to a List. Something has to be done, actually. In Risugami's ModLoader, the method in charge is `registerAllTextureOverrides`, which processes the list and does its magic. In the original ModLoader I'm using as a model (r1.2.5), this is done in the `onTick` method which is called from EntityRendererProxy (via a base class edit). Maybe my approach is wrong, we'll see with time, but I guess I can just add a call after my `init` method has run, as all `mod_XXX` classes have been loaded and all `load` methods have been called, thus all overrides are in order. So let's take this path, for the moment. So a new addition to `Minecraft.java` (with a slight modification to what we had before):
 
 ```java
     try {
@@ -788,7 +788,7 @@ Which seems to compile and run without problems (can't test it yet until we have
 
 ## Smelting recipes
 
-Smelting stuff is embedded inside `TileEntityFurnace` in this version of Minecraft. So no `FurnaceRecipes` class like in 1.2.5, I'm afraid. After some study, I've discovered, in awe, that all there is is this method:
+Smelting stuff is embedded inside `TileEntityFurnace` in this version of Minecraft. So no `FurnaceRecipes` class like in r1.2.5, I'm afraid. After some study, I've discovered, in awe, that all there is is this method:
 
 ```java
     private static int smeltItem(int var0) {
@@ -922,7 +922,7 @@ That way we can quickly create an oven and a crafting table, smelt some cobblest
 
 # Items
 
-The main problem with items is that this version of Minecraft only supports `TextureFX`s for the `terrain.png` atlas, and not for `icons/items.png`. So against my will I've modified once again the bases classes, this time half-porting 1.2.5's version of the `TextureFX` class and the `updateDynamicTextures` method in `RenderEngine`:
+The main problem with items is that this version of Minecraft only supports `TextureFX`s for the `terrain.png` atlas, and not for `icons/items.png`. So against my will I've modified once again the bases classes, this time half-porting r1.2.5's version of the `TextureFX` class and the `updateDynamicTextures` method in `RenderEngine`:
 
 ```java
     package net.minecraft.client.renderer.block;
@@ -1160,7 +1160,7 @@ Where
 
 `blocksEffectiveAgainst` is a list of blocks the tool is good at breaking. If the block being hit is in the list, the strength applied is `(var3 + 1) * 2`, this is, 2.0F for wood, 4.0F for stone, 6.0F for steel and 8.0F for diamond. It it's not, the strength is 1.0F.
 
-Hmmm - this seems way more hackeable than what I know: in 1.2.5 there's a Enum to contains all the values which can't be easily modified programatically. All methods are marked `final` which just sucks and *I'm removing that so we can customize everything!*
+Hmmm - this seems way more hackeable than what I know: in r1.2.5 there's a Enum to contains all the values which can't be easily modified programatically. All methods are marked `final` which just sucks and *I'm removing that so we can customize everything!*
 
 Let's look at the actual tools which extend `ItemTool`:
 
@@ -1719,7 +1719,7 @@ So getting new food to Indev is pretty straightforward. If you can do with any o
 
 It would be cool to add this status to the player entity and also have raw chicken or rotten flesh activate it in Indev. Let's see how we could get this to work.
 
-In minecraft 1.2.5 this is implemented with potions. Items have a `setPotionEffect` method to set a `potionEffect` attribute. Items here have an `onFoodEaten` method which call `EntityPlayer`'s `addPotionEffect` if any potion effect. This adds the potion to `activePotionsMap`.
+In minecraft r1.2.5 this is implemented with potions. Items have a `setPotionEffect` method to set a `potionEffect` attribute. Items here have an `onFoodEaten` method which call `EntityPlayer`'s `addPotionEffect` if any potion effect. This adds the potion to `activePotionsMap`.
 
 Each `EntityLiving` call to `updatePotionEffects` in `onEntityUpdate`. This method iterates the `activePotionsMap` and call each `potionEffect` `opUpdate` method which will return `false` if the effect has finished. This causes a call to `onFinishedPotionEffect`. 
 
@@ -1881,7 +1881,7 @@ TODO - adding some visual indicator for status effects!
 
 ### More status effects stuff - attack strength
 
-There are two potions in 1.2.5, *weakness* and *damageBoost* which modify the strength when the player hits mobs. We can provide support for such kind of modifications with yet another hook, this time at `Minecraft.clickMouse` right after the attack strength has been calculated in `var19`. There's this:
+There are two potions in r1.2.5, *weakness* and *damageBoost* which modify the strength when the player hits mobs. We can provide support for such kind of modifications with yet another hook, this time at `Minecraft.clickMouse` right after the attack strength has been calculated in `var19`. There's this:
 
 ```java
     int var19 = (var9 = (var11 = var10000.inventory).getStackInSlot(var11.currentItem)) != null ? Item.itemsList[var9.itemID].getDamageVsEntity() : 1;
@@ -1892,16 +1892,16 @@ We can follow this with:
 ```java
     // var19 : hit strength.
     // var14 : Entity being hit
-    var19 = ModLoader.HookAttackStrengthModifier (this.thePlayer, var14, var19);
+    var19 = ModLoader.hookAttackStrengthModifier (this.thePlayer, var14, var19);
 ```
 
 And add this new hook to `ModLoader`
 
 ```java
-    public static int HookAttackStrengthModifier (EntityLiving entityLiving, Entity entityHit, int strength) {
+    public static int hookAttackStrengthModifier (EntityLiving entityLiving, Entity entityHit, int strength) {
         int res = strength;
         for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
-            res = ((BaseMod)iterator.next()).HookAttackStrengthModifier(entityLiving, entityHit, res);
+            res = ((BaseMod)iterator.next()).hookAttackStrengthModifier(entityLiving, entityHit, res);
         }
         return res;
     }
@@ -1910,7 +1910,7 @@ And add this new hook to `ModLoader`
 then `BaseMod`
 
 ```java
-    public int HookAttackStrengthModifier (EntityLiving entityLiving, Entity entityHit, int strength) {
+    public int hookAttackStrengthModifier (EntityLiving entityLiving, Entity entityHit, int strength) {
         return strength;
     }
 ```
@@ -1933,21 +1933,21 @@ The same way we can add hooks to modify how tools interact with blocks, in `Bloc
     [...]
 ```
 
-Using the same kind of hook on var4 we can achieve the same effect as using 1.2.5 potions *digSpeed* and *digSlowdown*. Just adding this:
+Using the same kind of hook on var4 we can achieve the same effect as using r1.2.5 potions *digSpeed* and *digSlowdown*. Just adding this:
 
 ```java
     // var1 is playerEntity
     // var4 is original strength
-    var4 = ModLoader.HookBlockHitStrengthModifier (var1, this, var4);
+    var4 = ModLoader.hookBlockHitStrengthModifier (var1, this, var4);
 ```
 
 And the new hook in `Modloader`
 
 ```java
-    public static float HookBlockHitStrengthModifier (EntityLiving entityLiving, Block block, float strength) {
+    public static float hookBlockHitStrengthModifier (EntityLiving entityLiving, Block block, float strength) {
         float res = strength;
         for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
-            res = ((BaseMod)iterator.next()).HookBlockHitStrengthModifier(entityLiving, block, res);
+            res = ((BaseMod)iterator.next()).hookBlockHitStrengthModifier(entityLiving, block, res);
         }
         return res;     
     }
@@ -1956,7 +1956,7 @@ And the new hook in `Modloader`
 And `Basemod`
 
 ```java
-    public float HookBlockHitStrengthModifier (EntityLiving entityLiving, Block block, float strength) {
+    public float hookBlockHitStrengthModifier (EntityLiving entityLiving, Block block, float strength) {
         return strength;
     }
 ```
@@ -2011,7 +2011,7 @@ TODO - Add example about using this alongside Status Effects
 
 ### Particles
 
-Some may not like this, that's why particle spawning (and color) will be controlled by your `Status` implementation. Anyways, I've added this new kind of particle to the base engine (adapted from 1.2.5):
+Some may not like this, that's why particle spawning (and color) will be controlled by your `Status` implementation. Anyways, I've added this new kind of particle to the base engine (adapted from r1.2.5):
 
 ```java
     package net.minecraft.client.particle;
@@ -2171,3 +2171,461 @@ And give our poison particles a colour in `mod_Example`:
     statusPoisoned = new StatusPoisoned(Status.getNewStatusId(), true);
     statusPoisoned.particleColor = 0x70B433;
 ```
+
+# Custom block renderers
+
+Risugami's ModLoader hooks at `RenderBlocks.renderBlockByRenderType` so `ModLoader.renderWorldBlock` is called if the block's `getRenderType` returns a non already supported ID. I'm going to do the same thing as it's simple, easy and powerful.
+
+Indev's `RenderBlocks` is less encapsulated and `renderBlockByRenderType` is a big method with lots of code inside. Anyways, being able to hook my `ModLoader` here should be as easy as... replacing the `return false` at the end for:
+
+```java
+    return ModLoader.renderWorldBlock(this, blockAccess, var2, var3, var4, var1, var5);
+```
+
+Also in `RenderBlocks`, at the end of `renderBlockOnInventory`, we need another hook:
+
+```java
+    ModLoader.renderInvBlock(this, var1, var3);
+```
+
+Modloader stores a `blockModels` HashMap. From your mod, you call a `getUniqueBlockModelID` which registers your mod in the HashMap associated with a new `renderType` which also returns. `renderWorldBlock` just iterates that HashMap and calls the registered mods' `renderWorldBlock` method. Such method should check the `renderType` and call the render function.
+
+For the moment we add some stuff to `ModLoader` - almost the same thing as in Risugami's:
+
+```java
+    /*
+     * Registers your BaseMod instance as containing a custom block renderer.
+     * You must then override two methods in your mod:
+     * `renderInvBlock` to render the block in the inventory and
+     * `renderWorldBlock` to render it in the world.
+     * Set flag if the item renderer should render it as a regular block or not.
+     */
+    public static int getUniqueBlockModelID(BaseMod basemod, boolean flag) {
+        int i = nextBlockModelID++;
+        blockModels.put(Integer.valueOf(i), basemod);
+        blockSpecialInv.put(Integer.valueOf(i), Boolean.valueOf(flag));
+        return i;
+    }
+    
+    /*
+     * Called from renderBlockAsItem.
+     */
+    public static void renderInvBlock(RenderBlocks renderblocks, Block block, int renderType) {
+        BaseMod basemod = (BaseMod)blockModels.get(Integer.valueOf(renderType));
+
+        if (basemod == null) {
+            return;
+        } else {
+            basemod.renderInvBlock(renderblocks, block, renderType);
+            return;
+        }
+    }
+
+    /*
+     * Called from renderBlockByRenderType.
+     */
+    public static boolean renderWorldBlock(RenderBlocks renderblocks, World world, int x, int y, int z, Block block, int renderType) {
+        BaseMod basemod = (BaseMod)blockModels.get(Integer.valueOf(renderType));
+
+        if (basemod == null) {
+            return false;
+        } else {
+            return basemod.renderWorldBlock(renderblocks, world, x, y, z, block, renderType);
+        }
+    }
+```
+
+Once this is set up, we only need to actually implement a custom block renderer. To choose one which is pretty and simple, we'll use the lilypad renderer from r1.2.5 with some minor changes. The first thing would be creating a new class for our `BlockLilyPad`:
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.util.Random;
+
+    import net.minecraft.client.physics.AxisAlignedBB;
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.block.Material;
+    import net.minecraft.game.level.World;
+
+    public class BlockLilypad extends ModBlock {
+
+        public BlockLilypad(int id) {
+            super(id, Material.plants);
+            this.setTickOnLoad(true);
+            this.setBlockBounds(0.0F, 0.0F, 0.0F, 1.0F, 0.015625F, 1.0F);
+        }
+
+        public final boolean canPlaceBlockAt(World world, int x, int y, int z) {
+            return this.canThisPlantGrowOnThisBlockID(world.getBlockId(x, y - 1, z));
+        }
+
+        protected boolean canThisPlantGrowOnThisBlockID(int blockID) {
+            return blockID == Block.waterStill.blockID;
+        }
+        
+        // Adapted from Flower:
+        public final void onNeighborBlockChange(World world, int x, int y, int z, int blockID) {
+            super.onNeighborBlockChange(world, x, y, z, blockID);
+            this.checkFlowerChange(world, x, y, z);
+        }
+
+        public void updateTick(World world, int x, int y, int z, Random rand) {
+            this.checkFlowerChange(world, x, y, z);
+        }
+
+        private void checkFlowerChange(World world, int x, int y, int z) {
+            if (!this.canBlockStay(world, x, y, z)) {
+                this.dropBlockAsItem(world, x, y, z, world.getBlockMetadata(x, y, z));
+                world.setBlockWithNotify(x, y, z, 0);
+            }
+
+        }
+
+        public boolean canBlockStay(World world, int x, int y, int z) {
+            return this.canThisPlantGrowOnThisBlockID(world.getBlockId(x, y - 1, z));
+        }
+        
+        public AxisAlignedBB getCollisionBoundingBoxFromPool(World par1World, int par2, int par3, int par4) {
+            return new AxisAlignedBB ((float)par2 + minX, (float)par3 + minY, (float)par4 + minZ, (float)par2 + maxX, (float)par3 + maxY, (float)par4 + maxZ);
+        }
+        
+        public final boolean isOpaqueCube() {
+            return false;
+        }
+
+        public final boolean renderAsNormalBlock() {
+            return false;
+        }
+
+        public int getRenderType() {
+            return mod_Example.blockLilypadRenderID;
+        }
+    }
+```
+
+Note how `renderAsNormalBlock` returns `false`, and `getRenderType` refers to an ID we have yet to calculate... in `mod_Example`:
+
+```java
+    // Block lilypad with a custom renderer
+    blockLilypad = new BlockLilypad (ModLoader.getBlockId()).setName("block.lilypad");
+    ModLoader.registerBlock(blockLilypad);
+    blockLilypad.blockIndexInTexture = ModLoader.addOverride (EnumTextureAtlases.TERRAIN, "textures/block_lilypad.png");
+    blockLilypadRenderID = ModLoader.getUniqueBlockModelID(this, false);    
+```
+
+The actual rendering code should be located at `RenderWorldBlock` and `RenderInvBlock`.
+
+```java
+    public boolean renderWorldBlock(RenderBlocks renderblocks, World world, int x, int y, int z, Block block, int renderType) {
+        Tessellator tessellator = Tessellator.instance;
+        
+        if (renderType == blockLilypadRenderID) {
+            float b = block.getBlockBrightness(world, x, y, z);
+            tessellator.setColorOpaque_F(b, b, b);
+            
+            return this.renderBlockLilypad (block, (float)x, (float)y, (float)z);
+        }
+        return false;
+    }
+    
+    public boolean renderBlockLilypad(Block block, float par2, float par3, float par4)
+    {
+        Tessellator tessellator = Tessellator.instance;
+        int i = block.blockIndexInTexture;
+
+        int j = (i & 0xf) << 4;
+        int k = i & 0xff0;
+        
+        float f = 0.015625F;
+        
+        float d = (float)j / 256F;
+        float d1 = ((float)j + 15.99F) / 256F;
+        float d2 = (float)k / 256F;
+        float d3 = ((float)k + 15.99F) / 256F;
+        
+        long l = (long)(par2 * 0x2fc20f) ^ (long)par4 * 0x6ebfff5L ^ (long)par3;
+        l = l * l * 0x285b825L + l * 11L;
+        int i1 = (int)(l >> 16 & 3L);
+        
+        float f1 = (float)par2 + 0.5F;
+        float f2 = (float)par4 + 0.5F;
+        float f3 = (float)(i1 & 1) * 0.5F * (float)(1 - (i1 & 2));
+        float f4 = (float)(i1 + 1 & 1) * 0.5F * (float)(1 - ((i1 + 1) & 2));
+
+        tessellator.addVertexWithUV((f1 + f3) - f4, (float)par3 + f, f2 + f3 + f4, d, d2);
+        tessellator.addVertexWithUV(f1 + f3 + f4, (float)par3 + f, (f2 - f3) + f4, d1, d2);
+        tessellator.addVertexWithUV((f1 - f3) + f4, (float)par3 + f, f2 - f3 - f4, d1, d3);
+        tessellator.addVertexWithUV(f1 - f3 - f4, (float)par3 + f, (f2 + f3) - f4, d, d3);
+        tessellator.addVertexWithUV(f1 - f3 - f4, (float)par3 + f, (f2 + f3) - f4, d, d3);
+        tessellator.addVertexWithUV((f1 - f3) + f4, (float)par3 + f, f2 - f3 - f4, d1, d3);
+        tessellator.addVertexWithUV(f1 + f3 + f4, (float)par3 + f, (f2 - f3) + f4, d1, d2);
+        tessellator.addVertexWithUV((f1 + f3) - f4, (float)par3 + f, f2 + f3 + f4, d, d2);
+
+        return true;
+    }
+```
+
+Lilypads have a gotcha: they should be able to be placed on still water by the player, but the main "check which block is under the mouse cursor" code won't work as water is not detected as a block you can interact with, just like air (thanks **Silver**, for the pointer).
+
+When you create a block, they are automaticly assigned to a `ItemBlock` object which implements an `onItemUse` used to actually place the block in the world. For `BlockLilypad` we'll be using a custom item class, which we should instruct `ModLoader` to associate with `BlockLilypad` explicitly in our call to `registerBlock`.
+
+*But* it's not *that* simple. For this to work, we need a `world.raytraceBlocks` which can detect water, and Indev's can't. In r1.2.5, `world.raytraceBlocks` has a special version which takes two booleans, which by default are `false, false`, but in the call which originates from `BlockLilypad` they end up being `true, false`. Also, this new version of `raytraceBlocks` seems to rely on a `Block.canCollideCheck` method which will return a call to `isCollidable` for all blocks but for some block classes, for example `BlockFluid`.
+
+So let's go step by step. First thing, adding `Block.canCollideCheck` and overriding it in `BlockFluid`. 
+
+In `Block`:
+
+```java
+    public boolean canCollideCheck (int metadata, boolean flag) {
+        return isCollidable ();
+    }
+```
+
+In `BlockFluid`:
+
+```java
+    public boolean canCollideCheck (int metadata, boolean flag) {
+        return flag && metadata == 0;
+    }
+```
+
+Now the task is trying to understand what both versions of raytraceBlocks are doing to enhance Indev's without completely rewriting it. 
+
+Indev's version seems to iterate 20 times. Then it moves until it hits a block face then get's the block that's in there. if the block id is <= 0, the block is not collidable, or if the ray doesn't collide its bounding box, it keeps going. If not, it returns a `MovingObjectCollision` representing the collision with the bounding box.
+
+r1.2.5's seems way more complicated. Before it starts moving, it gets the block in the current position and if (the second boolean parameter is false, OR the block is null OR it has a collision box) AND, also, the block id is > 0 AND `block.canCollideCheck` (Does this make sense?!  If the block is null, `block.canCollideCheck` will throw a `NullPointerException`. Hapily, that's after having checke that id > 0) - if this happens, then it calculates the collision with that block bounding box and if it's not null, it returns it. If not, it does a very similar loop as Indev's.
+
+To help me understand what second flag does and what this piece of code is attempting to do I'll have to mentally trace the code. Let's see that, in fact, the second flag is false, which will make the whole parenthesis with ORs "true" without checking anything else. So the if, in practice, becomes this:
+
+```
+    if (k1 > 0 && block.canCollideCheck(i2, par3))
+```
+
+`par3`, the first flag, is `true` in the ItemWaterlily check. So if the block is water, this condition will be true and the block will be executed, so it will return the `MovingObjectCollision` agains that block. Note that this first check will return a collision if the block is collidable (solid) OR if it is water, via the special `canCollideCheck` which returns true if `par3` is true *BUT* the general call to this method, which happens with `par3` == false, will not.
+
+So normally, water would be ignored, but if you call this with 'false, true', it won't.
+
+The very same check is performed at the loop.
+
+So the next step would be creating the new entry point for `rayTraceBlocks`, adding the first check, and modifying the already existing check. Then test if everything keeps working as normal, and if it does, do the `ItemLilypad` thing.
+
+OK - I refactored the code, add the flags and the `canCollideCheck`s and it seems to work. Now let's add the missing stuff to place `Lilypads`.
+
+In r1.2.5's `Item` you can find this method:
+
+
+```java
+    protected MovingObjectPosition getMovingObjectPositionFromPlayer(World par1World, EntityPlayer par2EntityPlayer, boolean par3)
+    {
+        float f = 1.0F;
+        float f1 = par2EntityPlayer.prevRotationPitch + (par2EntityPlayer.rotationPitch - par2EntityPlayer.prevRotationPitch) * f;
+        float f2 = par2EntityPlayer.prevRotationYaw + (par2EntityPlayer.rotationYaw - par2EntityPlayer.prevRotationYaw) * f;
+        double d = par2EntityPlayer.prevPosX + (par2EntityPlayer.posX - par2EntityPlayer.prevPosX) * (double)f;
+        double d1 = (par2EntityPlayer.prevPosY + (par2EntityPlayer.posY - par2EntityPlayer.prevPosY) * (double)f + 1.6200000000000001D) - (double)par2EntityPlayer.yOffset;
+        double d2 = par2EntityPlayer.prevPosZ + (par2EntityPlayer.posZ - par2EntityPlayer.prevPosZ) * (double)f;
+        Vec3D vec3d = Vec3D.createVector(d, d1, d2);
+        float f3 = MathHelper.cos(-f2 * 0.01745329F - (float)Math.PI);
+        float f4 = MathHelper.sin(-f2 * 0.01745329F - (float)Math.PI);
+        float f5 = -MathHelper.cos(-f1 * 0.01745329F);
+        float f6 = MathHelper.sin(-f1 * 0.01745329F);
+        float f7 = f4 * f5;
+        float f8 = f6;
+        float f9 = f3 * f5;
+        double d3 = 5D;
+        Vec3D vec3d1 = vec3d.addVector((double)f7 * d3, (double)f8 * d3, (double)f9 * d3);
+        MovingObjectPosition movingobjectposition = par1World.rayTraceBlocks_do_do(vec3d, vec3d1, par3, !par3);
+        return movingobjectposition;
+    }
+```
+
+which is called from the `ItemWaterlily` thingy. Let's port it blindfoldedly.
+
+And the `ItemWaterlily`:
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.client.physics.MovingObjectPosition;
+    import net.minecraft.game.block.Material;
+    import net.minecraft.game.entity.player.EntityPlayer;
+    import net.minecraft.game.item.ItemBlock;
+    import net.minecraft.game.item.ItemStack;
+    import net.minecraft.game.level.World;
+
+    public class ItemLilypad extends ItemBlock {
+        public ItemLilypad (int itemID) {
+            super (itemID);
+        }
+        
+        public ItemStack onItemRightClick(ItemStack par1ItemStack, World par2World, EntityPlayer par3EntityPlayer) {
+            MovingObjectPosition movingobjectposition = getMovingObjectPositionFromPlayer(par2World, par3EntityPlayer, true);
+
+            if (movingobjectposition == null) {
+                return par1ItemStack;
+            }
+
+            if (movingobjectposition.typeOfHit == 0) {
+                int i = movingobjectposition.blockX;
+                int j = movingobjectposition.blockY;
+                int k = movingobjectposition.blockZ;
+
+                if (par2World.getBlockMaterial(i, j, k) == Material.water && par2World.getBlockMetadata(i, j, k) == 0 && par2World.getBlockId(i, j + 1, k) == 0) {
+                    par2World.setBlockWithNotify(i, j + 1, k, mod_Example.blockLilypad.blockID);
+                    par1ItemStack.stackSize--;
+                }
+            }
+
+            return par1ItemStack;
+        }   
+    }
+```
+
+And finally, in `mod_Example`, 
+
+```java
+    // Block lilypad with a custom renderer
+    blockLilypad = new BlockLilypad (ModLoader.getBlockId()).setName("block.lilypad");
+    ModLoader.registerBlock(blockLilypad, ItemLilypad.class);
+    blockLilypad.blockIndexInTexture = ModLoader.addOverride (EnumTextureAtlases.TERRAIN, "textures/block_lilypad.png");
+    blockLilypadRenderID = ModLoader.getUniqueBlockModelID(this, false);    
+```
+
+TODO - check if this is working!
+
+I'll leave this for now while I solve another issue: the item is not being displayed correctly. A plain lump of grass is being displayed in the player's hand and in the inventory, which means that I'm clearly missing something. I don't have a complete example of using custom block renderers in ModLoader (this is, including the item rendering code), nor I don't fully understand how this all works in Indev. So I'll have to do some research and get some understanding, and then see how can I work it all out.
+
+Right now I've done this:
+
+```java 
+    public void renderInvBlock(RenderBlocks renderblocks, Block block, int renderType) {
+        Tessellator tessellator = Tessellator.instance;
+        if (renderType == blockLilypadRenderID) {
+            tessellator.startDrawingQuads();
+            Tessellator.setNormal(0.0F, -1.0F, 0.0F);
+            this.renderBlockLilypad(block, -0.5F, -0.5F, -0.5F);
+            tessellator.draw();
+        }
+    }
+```
+
+`renderInvBlock` has been hooked as a default case for `RenderBlocks.renderBlockOnInventory`, but I'm not sure if it's being called *at all*. Exactly: it's not being rendered. So let me check this out more slowly...
+
+`ItemRenderer.renderItemInFirstPerson` seems to be very simple - If the `itemID` < 256 (i.e. it's a block) and its `getRenderType ()` returns `0` it just calls `this.renderBlocksInstance.renderBlockOnInventory (Block.blocksList [this.itemToRender.itemID]);`. If it's not, it renders the "2D in 3D" style representation of the item using its base texture. My `LilyPad` item falls into this category - I just have to understand *why* texture index `0` is being rendered, rather than the correct one.
+
+This seems to extract the texture index from the associated Item `getIconIndex`. When a block is registered, a related `ItemBlock` is created. In its constructor, we have a `this.setIconIndex(Block.blocksList[var1 + 256].getBlockTextureFromSide(2));`. And, by default, this should return `blockIndexInTexture` no matter what. So what's wrong? I'm missing something.
+
+Yup, `this.itemToRender.getItem().getIconIndex()` is returning 0 for `ItemLilypad` and I think I know why: I'm registering the block *before* I assign an iconIndex. In this case this **does** matter, as we actually need the associated `ItemBlock`'s `iconIndex`. So I'll change the order and it works. I'll just have to remember to document this fact!
+
+The 2D view in the inventory and the "2D in 3D" view in the player's hand looks good for lilypads, but won't look as good generally, so I need to find the way to actually make Indev to call `renderInvBlock`. I also need a way to easily fall back in the 2D / "2D in 3D" solution.
+
+* As we have seen, the item in the player's hand is drawn by `ItemRenderer.renderItemInFirstPerson`, which calls `RenderBlocks.renderBlockOnInventory` if id < 256 and `renderType` == 0, or draws a "2D in 3D" representation otherwise.
+* Items in the inventory guy are drawn by `RenderItem.renderItemIntoGUI` which works similarly, but draws a 2D rendition instead of the "2D in 3D".
+
+My goal (and I'm writing this 'cause it's easier for me to visualize what I need to do if I verbalize it) is calling the custom rendering function if id < 256 and `renderType` != 0 and be able to fall back to the default 2D / "2D in 3D" default if I want.
+
+So I'll try and patch Indev in `ItemRenderer.renderItemInFirstPerson` and `RenderItem.renderItemIntoGUI` to call our `renderInvBlock` and, if that returns `false`, fallback to the default. 
+
+And here is where the `getUniqueBlockModelID` parameter `flag` comes into game!
+
+```java
+    public static boolean renderBlockIsItemFull3D(int i) {
+        if (!blockSpecialInv.containsKey(Integer.valueOf(i))) {
+            return false;
+        } else {
+            return ((Boolean)blockSpecialInv.get(Integer.valueOf(i))).booleanValue();
+        }
+    }
+```
+
+This method will return true if the custom block renderer was created with the flag set to true. We'll call this to decide if we must render our block using our own `renderInvBlock` method or with the default method (2D / "2D in 3D").
+
+`RenderItem.renderIntemIntoGUI`
+
+```java
+    if (var2.itemID < 256 && 
+        (
+            (renderType = Block.blocksList[var2.itemID].getRenderType()) == 0 ||
+            ModLoader.renderBlockIsItemFull3D(renderType)
+        )
+    ) {
+        var9 = var2.itemID;
+        RenderEngine.bindTexture(var1.getTexture("/terrain.png"));
+        Block var8 = Block.blocksList[var9];
+        GL11.glPushMatrix();
+        GL11.glTranslatef((float)(var3 - 2), (float)(var4 + 3), 0.0F);
+        GL11.glScalef(10.0F, 10.0F, 10.0F);
+        GL11.glTranslatef(1.0F, 0.5F, 8.0F);
+        GL11.glRotatef(210.0F, 1.0F, 0.0F, 0.0F);
+        GL11.glRotatef(45.0F, 0.0F, 1.0F, 0.0F);
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+        if (renderType == 0) 
+            this.renderBlocks.renderBlockOnInventory(var8);
+        else
+            ModLoader.renderInvBlock(this.renderBlocks, var8, renderType);
+        GL11.glPopMatrix();
+    [...]
+    }
+```
+
+`ItemRenderer.renderItemInFirstPerson`
+
+```java
+    int renderType;
+    if (this.itemToRender.itemID < 256 && 
+        (
+            (renderType = Block.blocksList[this.itemToRender.itemID].getRenderType()) == 0 ||
+            ModLoader.renderBlockIsItemFull3D(renderType)
+        )
+    ) {
+        GL11.glBindTexture(3553 /*GL_TEXTURE_2D*/, this.mc.renderEngine.getTexture("/terrain.png"));
+        Block var8 = Block.blocksList[this.itemToRender.itemID];
+        if (renderType == 0)
+            this.renderBlocksInstance.renderBlockOnInventory(var8);
+        else
+            ModLoader.renderInvBlock(this.renderBlocksInstance, var8, renderType);
+    } else {
+        [...]
+    }
+```
+
+Seems to be working just fine. Time to document all this.
+
+### A new hook
+
+Let's place the waterlilies during level generation. I've added another hook in the `planting` phase of level generation @ `LevelGenerator`. 
+
+`MoadLoader`:
+
+```java
+    public static void hookPlanting (LevelGenerator levelGenerator, World world, Random rand) {
+        for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+            ((BaseMod)iterator.next()).hookPlanting(levelGenerator, world, rand);
+        }
+    }   
+```
+
+`BaseMod`:
+
+```java
+    public void hookPlanting (LevelGenerator levelGenerator, World world, Random rand) {
+    }  
+```
+
+Use this in `mod_Example` to grow waterlilies:
+
+```java
+    public void hookPlanting (LevelGenerator levelGenerator, World world, Random rand) {
+        // Grow waterlilies
+        int numWaterlilies = world.length * world.width / 16;
+        for (int i = 0; i < numWaterlilies; i ++) {
+            int x = rand.nextInt(world.width);
+            int y = world.waterLevel - 1;
+            int z = rand.nextInt(world.length);
+            
+            if (world.getBlockId(x, y, z) == Block.waterStill.blockID) {
+                world.setBlockWithNotify(x, y + 1, z, blockLilypad.blockID);
+            }
+        }
+    } 
+```
+

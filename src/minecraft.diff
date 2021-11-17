@@ -2,7 +2,7 @@ Only in MCP-LTS/src/minecraft: armor
 Only in MCP-LTS/src/minecraft/com: mojontwins
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java	2021-11-10 11:11:51.701815400 +0100
-+++ MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java	2021-11-15 22:01:34.328447600 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java	2021-11-17 13:30:36.533662100 +0100
 @@ -58,6 +58,8 @@
  import org.lwjgl.opengl.GL11;
  import org.lwjgl.opengl.GLContext;
@@ -46,12 +46,20 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS
 +                        
 +                        // var19 : hit strength.
 +                        // var14 : Entity being hit
-+                        var19 = ModLoader.HookAttackStrengthModifier (this.thePlayer, var14, var19);
++                        var19 = ModLoader.hookAttackStrengthModifier (this.thePlayer, var14, var19);
 +                        
                          int var17 = var19;
                          if (var19 > 0) {
                              var14.attackEntityFrom(var12, var17);
-@@ -808,6 +824,8 @@
+@@ -469,6 +485,7 @@
+                         return;
+                     }
+                 } else if (this.objectMouseOver.typeOfHit == 0) {
++
+                     int var10 = this.objectMouseOver.blockX;
+                     var3 = this.objectMouseOver.blockY;
+                     int var13 = this.objectMouseOver.blockZ;
+@@ -808,6 +825,8 @@
  
          World var7 = var6.generate(var5, var1, var3, var8);
          this.setLevel(var7);
@@ -60,7 +68,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS
      }
  
      public final void setLevel(World var1) {
-@@ -864,4 +882,6 @@
+@@ -864,4 +883,6 @@
  
          System.gc();
      }
@@ -115,6 +123,86 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/PlayerControlle
          }
  
          return var6;
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/ItemRenderer.java MCP-LTS/src/minecraft/net/minecraft/client/renderer/ItemRenderer.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/ItemRenderer.java	2021-11-10 11:11:52.045564600 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/client/renderer/ItemRenderer.java	2021-11-17 12:51:30.863774400 +0100
+@@ -7,6 +7,9 @@
+ import net.minecraft.game.block.Block;
+ import net.minecraft.game.item.ItemStack;
+ import org.lwjgl.opengl.GL11;
++
++import com.mojontwins.modloader.ModLoader;
++
+ import util.MathHelper;
+ 
+ public final class ItemRenderer {
+@@ -53,9 +56,19 @@
+             }
+ 
+             GL11.glScalef(0.4F, 0.4F, 0.4F);
+-            if (this.itemToRender.itemID < 256 && Block.blocksList[this.itemToRender.itemID].getRenderType() == 0) {
++            int renderType;
++            if (this.itemToRender.itemID < 256 && 
++            	(
++            		(renderType = Block.blocksList[this.itemToRender.itemID].getRenderType()) == 0 ||
++                    ModLoader.renderBlockIsItemFull3D(renderType)
++            	)
++            ) {
+                 GL11.glBindTexture(3553 /*GL_TEXTURE_2D*/, this.mc.renderEngine.getTexture("/terrain.png"));
+-                this.renderBlocksInstance.renderBlockOnInventory(Block.blocksList[this.itemToRender.itemID]);
++                Block var8 = Block.blocksList[this.itemToRender.itemID];
++                if (renderType == 0)
++                	this.renderBlocksInstance.renderBlockOnInventory(var8);
++                else
++                	ModLoader.renderInvBlock(this.renderBlocksInstance, var8, renderType);
+             } else {
+                 if (this.itemToRender.itemID < 256) {
+                     GL11.glBindTexture(3553 /*GL_TEXTURE_2D*/, this.mc.renderEngine.getTexture("/terrain.png"));
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/RenderBlocks.java MCP-LTS/src/minecraft/net/minecraft/client/renderer/RenderBlocks.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/RenderBlocks.java	2021-11-10 11:11:52.061190800 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/client/renderer/RenderBlocks.java	2021-11-17 10:02:56.843375600 +0100
+@@ -5,6 +5,8 @@
+ import net.minecraft.game.level.World;
+ import org.lwjgl.opengl.GL11;
+ 
++import com.mojontwins.modloader.ModLoader;
++
+ public final class RenderBlocks {
+     private World blockAccess;
+     private int overrideBlockTexture = -1;
+@@ -30,11 +32,11 @@
+     }
+ 
+     public final boolean renderBlockByRenderType(Block var1, int var2, int var3, int var4) {
+-        int var5;
++        int var5 = var1.getRenderType();
+         Tessellator var6;
+         float var10;
+         boolean var26;
+-        if ((var5 = var1.getRenderType()) == 0) {
++        if (var5 == 0) {
+             var6 = Tessellator.instance;
+             var26 = false;
+             if (this.flipTexture || var1.shouldSideBeRendered(this.blockAccess, var2, var3 - 1, var4, 0)) {
+@@ -439,7 +441,7 @@
+ 
+                         return true;
+                     } else {
+-                        return false;
++                        return ModLoader.renderWorldBlock(this, blockAccess, var2, var3, var4, var1, var5);
+                     }
+                 }
+             }
+@@ -801,8 +803,7 @@
+                 Tessellator.setNormal(0.0F, -1.0F, 0.0F);
+                 this.renderBlockTorch(var1, -0.5F, -0.5F, -0.5F, 0.0F, 0.0F);
+                 var2.draw();
+-            }
+-
++            } 
+         }
+     }
+ }
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/RenderEngine.java MCP-LTS/src/minecraft/net/minecraft/client/renderer/RenderEngine.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/RenderEngine.java	2021-11-10 11:11:52.092440200 +0100
 +++ MCP-LTS/src/minecraft/net/minecraft/client/renderer/RenderEngine.java	2021-11-11 22:38:44.400599900 +0100
@@ -239,9 +327,52 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/block/Texture
 +    	}
 +    }
  }
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/entity/RenderItem.java MCP-LTS/src/minecraft/net/minecraft/client/renderer/entity/RenderItem.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/entity/RenderItem.java	2021-11-10 11:11:52.217440700 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/client/renderer/entity/RenderItem.java	2021-11-17 12:36:27.570928800 +0100
+@@ -10,6 +10,9 @@
+ import net.minecraft.game.entity.other.EntityItem;
+ import net.minecraft.game.item.ItemStack;
+ import org.lwjgl.opengl.GL11;
++
++import com.mojontwins.modloader.ModLoader;
++
+ import util.MathHelper;
+ 
+ public final class RenderItem extends Render {
+@@ -24,8 +27,15 @@
+     public final void renderItemIntoGUI(RenderEngine var1, ItemStack var2, int var3, int var4) {
+         if (var2 != null) {
+             int var9;
+-            if (var2.itemID < 256 && Block.blocksList[var2.itemID].getRenderType() == 0) {
+-                var9 = var2.itemID;
++            int renderType;
++
++            if (var2.itemID < 256 && 
++            	(
++            		(renderType = Block.blocksList[var2.itemID].getRenderType()) == 0 ||
++            		ModLoader.renderBlockIsItemFull3D(renderType)
++            	)
++            ) {
++            	var9 = var2.itemID;
+                 RenderEngine.bindTexture(var1.getTexture("/terrain.png"));
+                 Block var8 = Block.blocksList[var9];
+                 GL11.glPushMatrix();
+@@ -35,7 +45,10 @@
+                 GL11.glRotatef(210.0F, 1.0F, 0.0F, 0.0F);
+                 GL11.glRotatef(45.0F, 0.0F, 1.0F, 0.0F);
+                 GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+-                this.renderBlocks.renderBlockOnInventory(var8);
++                if (renderType == 0) 
++                	this.renderBlocks.renderBlockOnInventory(var8);
++                else
++                	ModLoader.renderInvBlock(this.renderBlocks, var8, renderType);
+                 GL11.glPopMatrix();
+             } else {
+                 if (var2.getItem().getIconIndex() >= 0) {
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/Block.java MCP-LTS/src/minecraft/net/minecraft/game/block/Block.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/Block.java	2021-11-10 11:11:52.248689300 +0100
-+++ MCP-LTS/src/minecraft/net/minecraft/game/block/Block.java	2021-11-15 22:18:06.044031400 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/block/Block.java	2021-11-17 13:30:36.559647100 +0100
 @@ -1,6 +1,9 @@
  package net.minecraft.game.block;
  
@@ -252,15 +383,40 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/Block.java MCP-LTS
  import net.minecraft.client.physics.AxisAlignedBB;
  import net.minecraft.client.physics.MovingObjectPosition;
  import net.minecraft.client.renderer.Vec3D;
-@@ -249,6 +252,8 @@
+@@ -207,6 +210,10 @@
+     public boolean isCollidable() {
+         return true;
+     }
++    
++    public boolean canCollideCheck (int metadata, boolean flag) {
++    	return isCollidable ();
++    }
+ 
+     public void updateTick(World var1, int var2, int var3, int var4, Random var5) {
+     }
+@@ -249,6 +256,8 @@
              if (var2.mainInventory[var2.currentItem] != null) {
                  var4 = 1.0F * var2.mainInventory[var2.currentItem].getItem().getStrVsBlock(this);
              }
 +            
-+            var4 = ModLoader.HookBlockHitStrengthModifier (var1, this, var4);
++            var4 = ModLoader.hookBlockHitStrengthModifier (var1, this, var4);
  
              float var5 = var4;
              if (var1.isInsideOfMaterial()) {
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/BlockFluid.java MCP-LTS/src/minecraft/net/minecraft/game/block/BlockFluid.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/BlockFluid.java	2021-11-10 11:11:52.358065100 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/block/BlockFluid.java	2021-11-17 08:01:54.194526100 +0100
+@@ -139,6 +139,10 @@
+     public boolean isCollidable() {
+         return false;
+     }
++    
++    public boolean canCollideCheck (int metadata, boolean flag) {
++    	return flag && metadata == 0;
++    }
+ 
+     public AxisAlignedBB getCollisionBoundingBoxFromPool(int var1, int var2, int var3) {
+         return null;
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java MCP-LTS/src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java	2021-11-10 11:11:52.514314200 +0100
 +++ MCP-LTS/src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java	2021-11-11 11:14:44.455263300 +0100
@@ -463,6 +619,52 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/EntityLiving.java
 +    	}
 +    }
  }
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/Item.java MCP-LTS/src/minecraft/net/minecraft/game/item/Item.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/Item.java	2021-11-10 11:11:52.654952100 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/item/Item.java	2021-11-17 09:11:56.178860300 +0100
+@@ -1,9 +1,13 @@
+ package net.minecraft.game.item;
+ 
+ import java.util.Random;
++
++import net.minecraft.client.physics.MovingObjectPosition;
++import net.minecraft.client.renderer.Vec3D;
+ import net.minecraft.game.block.Block;
+ import net.minecraft.game.entity.player.EntityPlayer;
+ import net.minecraft.game.level.World;
++import util.MathHelper;
+ 
+ public class Item {
+     protected static Random rand = new Random();
+@@ -130,6 +134,28 @@
+         return false;
+     }
+ 
++    // Backported from r1.2.5
++    protected MovingObjectPosition getMovingObjectPositionFromPlayer(World par1World, EntityPlayer par2EntityPlayer, boolean par3) {
++        float f = 1.0F;
++        float f1 = par2EntityPlayer.prevRotationPitch + (par2EntityPlayer.rotationPitch - par2EntityPlayer.prevRotationPitch) * f;
++        float f2 = par2EntityPlayer.prevRotationYaw + (par2EntityPlayer.rotationYaw - par2EntityPlayer.prevRotationYaw) * f;
++        float d = par2EntityPlayer.prevPosX + (par2EntityPlayer.posX - par2EntityPlayer.prevPosX) * (float)f;
++        float d1 = (par2EntityPlayer.prevPosY + (par2EntityPlayer.posY - par2EntityPlayer.prevPosY) * (float)f + 1.6200000000000001F) - (float)par2EntityPlayer.yOffset;
++        float d2 = par2EntityPlayer.prevPosZ + (par2EntityPlayer.posZ - par2EntityPlayer.prevPosZ) * (float)f;
++        Vec3D vec3d = new Vec3D (d, d1, d2);
++        float f3 = MathHelper.cos(-f2 * 0.01745329F - (float)Math.PI);
++        float f4 = MathHelper.sin(-f2 * 0.01745329F - (float)Math.PI);
++        float f5 = -MathHelper.cos(-f1 * 0.01745329F);
++        float f6 = MathHelper.sin(-f1 * 0.01745329F);
++        float f7 = f4 * f5;
++        float f8 = f6;
++        float f9 = f3 * f5;
++        float d3 = 5F;
++        Vec3D vec3d1 = vec3d.addVector(f7 * d3, f8 * d3, f9 * d3);
++        MovingObjectPosition movingobjectposition = par1World.rayTraceBlocks_flags(vec3d, vec3d1, par3, !par3);
++        return movingobjectposition;
++    }    
++    
+     static {
+         ItemSpade var10000 = new ItemSpade(0, 2);
+         byte var1 = 82;
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemArmor.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemArmor.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemArmor.java	2021-11-10 11:11:52.670577200 +0100
 +++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemArmor.java	2021-11-14 15:04:23.527376400 +0100
@@ -494,6 +696,27 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemAxe.java MCP-LT
      private static Block[] blocksEffectiveAgainst;
  
      public ItemAxe(int var1, int var2) {
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemBlock.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemBlock.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemBlock.java	2021-11-10 11:11:52.686188600 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemBlock.java	2021-11-17 07:38:13.384167500 +0100
+@@ -4,7 +4,7 @@
+ import net.minecraft.game.block.Block;
+ import net.minecraft.game.level.World;
+ 
+-public final class ItemBlock extends Item {
++public class ItemBlock extends Item {
+     private int blockID;
+ 
+     public ItemBlock(int var1) {
+@@ -42,7 +42,7 @@
+             return false;
+         } else if (var3 > 0 && var4 > 0 && var5 > 0 && var3 < var2.width - 1 && var4 < var2.height - 1 && var5 < var2.length - 1) {
+             int var7 = var2.getBlockId(var3, var4, var5);
+-            Block var9 = Block.blocksList[var7];
++            Block var9 = Block.blocksList[var7]; 
+             if (this.blockID > 0 && var9 == null || var9 == Block.waterMoving || var9 == Block.waterStill || var9 == Block.lavaMoving || var9 == Block.lavaStill || var9 == Block.fire) {
+                 AxisAlignedBB var8 = (var9 = Block.blocksList[this.blockID]).getCollisionBoundingBoxFromPool(var3, var4, var5);
+                 if (var2.checkIfAABBIsClear(var8) && var9.canPlaceBlockAt(var2, var3, var4, var5) && var2.setBlockWithNotify(var3, var4, var5, this.blockID)) {
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemBow.java MCP-LTS/src/minecraft/net/minecraft/game/item/ItemBow.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemBow.java	2021-11-10 11:11:52.686188600 +0100
 +++ MCP-LTS/src/minecraft/net/minecraft/game/item/ItemBow.java	2021-11-12 11:46:24.755938200 +0100
@@ -724,9 +947,76 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemTool.java MCP-L
          return this.damageVsEntity;
      }
  }
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/level/World.java MCP-LTS/src/minecraft/net/minecraft/game/level/World.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/level/World.java	2021-11-10 11:11:52.779939900 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/level/World.java	2021-11-17 08:59:12.199006100 +0100
+@@ -873,8 +873,16 @@
+     public final boolean isWater(int var1, int var2, int var3) {
+         return (var1 = this.getBlockId(var1, var2, var3)) > 0 && Block.blocksList[var1].material == Material.water;
+     }
+-
++    
+     public final MovingObjectPosition rayTraceBlocks(Vec3D var1, Vec3D var2) {
++    	return rayTraceBlocks_flags(var1, var2, false, false);
++    }
++
++    public final MovingObjectPosition rayTraceBlocks_flag(Vec3D var1, Vec3D var2, boolean waterCollides) {
++    	return rayTraceBlocks_flags(var1, var2, waterCollides, false);
++    }
++    
++    public final MovingObjectPosition rayTraceBlocks_flags(Vec3D var1, Vec3D var2, boolean waterCollides, boolean flag2) {
+         if (!Float.isNaN(var1.xCoord) && !Float.isNaN(var1.yCoord) && !Float.isNaN(var1.zCoord)) {
+             if (!Float.isNaN(var2.xCoord) && !Float.isNaN(var2.yCoord) && !Float.isNaN(var2.zCoord)) {
+                 int var3 = MathHelper.floor_float(var2.xCoord);
+@@ -883,16 +891,20 @@
+                 int var6 = MathHelper.floor_float(var1.xCoord);
+                 int var7 = MathHelper.floor_float(var1.yCoord);
+                 int var8 = MathHelper.floor_float(var1.zCoord);
+-                int var9 = 20;
+-
++                               
+                 int var21;
+                 MovingObjectPosition var22;
+                 Block var23;
+-                do {
+-                    if (var9-- < 0) {
+-                        return null;
++                for (int var9 = 0; var9 < 20; var9 ++) {
++                	
++                    int blockID = getBlockId (var6, var7, var8);
++                    int metadata = getBlockMetadata (var6, var7, var8);
++                    Block block = Block.blocksList[blockID];
++                    if ((!flag2 || block.getCollisionBoundingBoxFromPool(var6, var7, var8) != null) && blockID > 0 && block.canCollideCheck(metadata, waterCollides)) {
++                    	MovingObjectPosition movingobjectposition = block.collisionRayTrace(this, var6, var7, var8, var1, var2);
++                    	if (movingobjectposition != null) return movingobjectposition;
+                     }
+-
++                    
+                     if (Float.isNaN(var1.xCoord) || Float.isNaN(var1.yCoord) || Float.isNaN(var1.zCoord)) {
+                         return null;
+                     }
+@@ -998,11 +1010,14 @@
+                         ++var20.zCoord;
+                     }
+ 
+-                    var21 = this.getBlockId(var6, var7, var8);
+-                    var23 = Block.blocksList[var21];
+-                } while(var21 <= 0 || !var23.isCollidable() || (var22 = var23.collisionRayTrace(this, var6, var7, var8, var1, var2)) == null);
++                    blockID = this.getBlockId(var6, var7, var8);
++                    metadata = this.getBlockMetadata(var6, var7, var8);
++                    block = Block.blocksList[blockID];
++                                        
++                    // while(var21 <= 0 || !var23.isCollidable() || (var22 = var23.collisionRayTrace(this, var6, var7, var8, var1, var2)) == null);
++                } 
+ 
+-                return var22;
++                return null;
+             } else {
+                 return null;
+             }
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java MCP-LTS/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java	2021-11-10 11:11:52.811206400 +0100
-+++ MCP-LTS/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java	2021-11-11 11:56:38.808218500 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java	2021-11-17 13:37:50.663812100 +0100
 @@ -2,6 +2,9 @@
  
  import java.util.ArrayList;
@@ -750,4 +1040,14 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/level/generator/LevelGen
          this.guiLoading.displayLoadingString("Planting..");
          this.loadingBar();
          if (this.levelType != 1) {
+@@ -434,6 +441,9 @@
+         this.populateFlowersAndMushrooms(var6, Block.mushroomBrown, 50);
+         this.loadingBar();
+         this.populateFlowersAndMushrooms(var6, Block.mushroomRed, 50);
++        
++        ModLoader.hookPlanting (this, var6, this.rand);
++        
+         this.guiLoading.displayLoadingString("Lighting..");
+         this.loadingBar();
+ 
 Only in MCP-LTS/src/minecraft: particles.png

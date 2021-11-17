@@ -19,12 +19,14 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import javax.imageio.ImageIO;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.RenderBlocks;
 import net.minecraft.client.renderer.RenderEngine;
 import net.minecraft.game.block.Block;
 import net.minecraft.game.entity.Entity;
@@ -97,6 +99,11 @@ public class ModLoader {
 	// Used to modify RenderPlayer.armorFilenamePrefix
 	private static Field field_armorList = null;
 	private static Field field_modifiers = null;
+	
+	// Store custom block renderers
+	private static final Map<Integer,BaseMod> blockModels = new HashMap<Integer,BaseMod> ();
+    private static final Map<Integer,Boolean> blockSpecialInv = new HashMap<Integer,Boolean> ();
+    private static int nextBlockModelID = 1000;
 	
 	public ModLoader () {
 		
@@ -230,6 +237,30 @@ public class ModLoader {
 	}
 	
 	/*
+	 * This is basicly Risugami's method
+	 */
+	public static void registerBlock (ModBlock block, Class<?> class1) throws Exception {
+		if (block == null) throw new IllegalArgumentException("block parameter cannot be null.");
+		
+		int i = block.blockID;
+		ItemBlock itemblock = null;
+		
+        if (class1 != null) {
+            itemblock = (ItemBlock)class1.getConstructor(new Class[] {
+            	Integer.TYPE
+            }).newInstance(new Object[] {
+                Integer.valueOf(i - 256)
+            });
+        } else {
+            itemblock = new ItemBlock(i - 256);
+        }
+
+        if (Block.blocksList[i] != null && Item.itemsList[i] == null) {
+            Item.itemsList[i] = itemblock;
+        }
+	}	
+	
+	/*
 	 * Registers a new kind of armor
 	 */
     public static int addArmor(String s) throws Exception {
@@ -322,30 +353,6 @@ public class ModLoader {
 		if (bufferedImage == null) throw new Exception ("Image corrupted: " + textureURI);
 		
 		return bufferedImage;
-	}
-	
-	/*
-	 * This is basicly Risugami's method
-	 */
-	public static void registerBlock (ModBlock block, Class<ItemBlock> class1) throws Exception {
-		if (block == null) throw new IllegalArgumentException("block parameter cannot be null.");
-		
-		int i = block.blockID;
-		ItemBlock itemblock = null;
-		
-        if (class1 != null) {
-            itemblock = (ItemBlock)class1.getConstructor(new Class[] {
-            	Integer.TYPE
-            }).newInstance(new Object[] {
-                Integer.valueOf(i - 256)
-            });
-        } else {
-            itemblock = new ItemBlock(i - 256);
-        }
-
-        if (Block.blocksList[i] != null && Item.itemsList[i] == null) {
-            Item.itemsList[i] = itemblock;
-        }
 	}
     
 	/*
@@ -526,6 +533,13 @@ public class ModLoader {
         }
     }
     
+    // This one runs at the end of the `Planting` stage of level generation
+    public static void hookPlanting (LevelGenerator levelGenerator, World world, Random rand) {
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+        	((BaseMod)iterator.next()).hookPlanting(levelGenerator, world, rand);
+        }
+    }    
+    
     // This one runs right before the game starts
     public static void hookGameStart (Minecraft minecraft) {
     	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
@@ -543,19 +557,19 @@ public class ModLoader {
     }
     
     // Called to recalculate player hit strength vs. entity
-    public static int HookAttackStrengthModifier (EntityLiving entityLiving, Entity entityHit, int strength) {
+    public static int hookAttackStrengthModifier (EntityLiving entityLiving, Entity entityHit, int strength) {
     	int res = strength;
     	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
-        	res = ((BaseMod)iterator.next()).HookAttackStrengthModifier(entityLiving, entityHit, res);
+        	res = ((BaseMod)iterator.next()).hookAttackStrengthModifier(entityLiving, entityHit, res);
         }
     	return res;
     }
     
     // Called to recalculate player hit strength vs. block
-    public static float HookBlockHitStrengthModifier (EntityLiving entityLiving, Block block, float strength) {
+    public static float hookBlockHitStrengthModifier (EntityLiving entityLiving, Block block, float strength) {
     	float res = strength;
     	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
-        	res = ((BaseMod)iterator.next()).HookBlockHitStrengthModifier(entityLiving, block, res);
+        	res = ((BaseMod)iterator.next()).hookBlockHitStrengthModifier(entityLiving, block, res);
         }
     	return res;   	
     }
@@ -579,4 +593,57 @@ public class ModLoader {
     public static void addSmelting (int input, int output) {
     	ModFurnaceRecipes.addSmeltingRecipe(input, output);
     }
+    
+    /*
+     * Registers your BaseMod instance as containing a custom block renderer.
+     * You must then override two methods in your mod:
+     * `renderInvBlock` to render the block in the inventory and
+     * `renderWorldBlock` to render it in the world.
+     * Set flag if the item renderer should render it as a regular block or not.
+     */
+    public static int getUniqueBlockModelID(BaseMod basemod, boolean flag) {
+        int i = nextBlockModelID++;
+        blockModels.put(Integer.valueOf(i), basemod);
+        blockSpecialInv.put(Integer.valueOf(i), Boolean.valueOf(flag));
+        return i;
+    }
+    
+    /*
+     * Check if `renderInvBlock` should be called to render this item in the inventory
+     * or in your hand.
+     */
+    public static boolean renderBlockIsItemFull3D(int i) {
+        if (!blockSpecialInv.containsKey(Integer.valueOf(i))) {
+            return false;
+        } else {
+            return ((Boolean)blockSpecialInv.get(Integer.valueOf(i))).booleanValue();
+        }
+    }
+    
+    /*
+     * Called from RenderItem.renderItemIntoGUI and ItemRenderer.renderItemInFirstPerson
+     */
+    public static void renderInvBlock(RenderBlocks renderblocks, Block block, int renderType) {
+        BaseMod basemod = (BaseMod)blockModels.get(Integer.valueOf(renderType));
+
+        if (basemod == null) {
+            return;
+        } else {
+        	basemod.renderInvBlock(renderblocks, block, renderType);
+        }
+    }
+
+    /*
+     * Called from renderBlockByRenderType.
+     */
+    public static boolean renderWorldBlock(RenderBlocks renderblocks, World world, int x, int y, int z, Block block, int renderType) {
+        BaseMod basemod = (BaseMod)blockModels.get(Integer.valueOf(renderType));
+
+        if (basemod == null) {
+            return false;
+        } else {
+            return basemod.renderWorldBlock(renderblocks, world, x, y, z, block, renderType);
+        }
+    }
+    
 }
