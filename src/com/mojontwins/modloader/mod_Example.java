@@ -37,6 +37,8 @@ public class mod_Example extends BaseMod {
 	public static ItemFoodRawChicken itemFoodRawChicken;
 	public static ItemFoodCookedChicken itemFoodCookedChicken;
 	public static ModBlock blockLilypad;
+	public static BlockSillyBox blockSillyBoxEmpty;
+	public static BlockSillyBox blockSillyBoxFull;
 	
 	public static int blockLilypadRenderID;
 	
@@ -137,10 +139,23 @@ public class mod_Example extends BaseMod {
 		statusPoisoned.particleColor = 0x70B433;
 		
 		// Block lilypad with a custom renderer
+		
 		blockLilypad = new BlockLilypad (ModLoader.getBlockId()).setName("block.lilypad");
 		blockLilypad.blockIndexInTexture = ModLoader.addOverride (EnumTextureAtlases.TERRAIN, "textures/block_lilypad.png");
 		ModLoader.registerBlock(blockLilypad, ItemLilypad.class);
 		blockLilypadRenderID = ModLoader.getUniqueBlockModelID(this, false);		
+		
+		// Block silly box with associated tile entity
+		
+		blockSillyBoxEmpty = (BlockSillyBox) new BlockSillyBox (ModLoader.getBlockId()).setName("block.silly_block_empty");
+		blockSillyBoxFull = (BlockSillyBox) new BlockSillyBox (ModLoader.getBlockId()).setName("block.silly_block_full");
+		
+		blockSillyBoxFull.blockIndexInTexture = blockSillyBoxEmpty.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_box.png");
+		blockSillyBoxFull.topTextureIndex = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_box_top_full.png");
+		blockSillyBoxEmpty.topTextureIndex = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_box_top_empty.png");
+		
+		ModLoader.registerBlock(blockSillyBoxFull);
+		ModLoader.registerBlock(blockSillyBoxEmpty);
 	}
 	
 	public void renderInvBlock(RenderBlocks renderblocks, Block block, int renderType) {
@@ -224,7 +239,8 @@ public class mod_Example extends BaseMod {
 		minecraft.thePlayer.inventory.setInventorySlotContents(1, new ItemStack(Block.workbench, 1));
 		minecraft.thePlayer.inventory.setInventorySlotContents(2, new ItemStack(Item.coal, 64));
 		minecraft.thePlayer.inventory.setInventorySlotContents(3, new ItemStack(itemFoodRawChicken, 10));
-		minecraft.thePlayer.inventory.setInventorySlotContents(3, new ItemStack(blockLilypad, 64));
+		minecraft.thePlayer.inventory.setInventorySlotContents(3, new ItemStack(blockSillyBoxEmpty, 1));
+
 		minecraft.thePlayer.inventory.setInventorySlotContents(9, new ItemStack(Block.cobblestone, 64));
 		minecraft.thePlayer.inventory.setInventorySlotContents(10, new ItemStack(itemPebble, 64));
 		minecraft.thePlayer.inventory.setInventorySlotContents(11, new ItemStack(itemSteelSword, 1));

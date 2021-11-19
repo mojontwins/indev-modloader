@@ -2643,5 +2643,160 @@ The silly box is just a box where you can store an item. It behaves this way:
 * If you right click it, it will drop the object it is containing.
 * If you have an item in your hand when doing so, such item will get inside the box.
 * When harvested, it will drop the related block and the contents and the tile entity will be despawned.
+* The top texture will be different than the sides / bottom and will change if the box is full.
 
-So simple. So we need to create a class for this new block, and then implement the related tile entity, and once we have everything in place, I'll reserarch how to implement it into the game.
+So simple. So we need to create a class for this new block, and then implement the related tile entity, and once we have everything in place, I'll research how to implement it into the game.
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.util.Random;
+
+    import net.minecraft.game.block.BlockContainer;
+    import net.minecraft.game.block.Material;
+    import net.minecraft.game.block.tileentity.TileEntity;
+    import net.minecraft.game.entity.other.EntityItem;
+    import net.minecraft.game.entity.player.EntityPlayer;
+    import net.minecraft.game.level.World;
+
+    public class BlockSillyBox extends BlockContainer {
+        public int topTextureIndex;
+        public String name;
+        
+        public BlockSillyBox(int id) {
+            super(id, Material.rock);
+            this.setHardness(1.5F);
+            this.setResistance(20.0F);
+        }
+
+        public final int getBlockTextureFromSide(int side) {
+            return side == 1 ? topTextureIndex : blockIndexInTexture;
+        }
+        
+        public int idDropped(int var1, Random var2) {
+            // No matter what, drop the box EMPTY
+            return mod_Example.blockSillyBoxEmpty.blockID;
+        }
+
+        public final boolean blockActivated(World world, int x, int y, int z, EntityPlayer entityPlayer) {
+            TileEntitySillyBox tileEntity = (TileEntitySillyBox)world.getBlockTileEntity(x, y, z);
+            tileEntity.putItem(entityPlayer);
+            return true;
+        }
+        
+        protected final TileEntity getBlockEntity() {
+            return new TileEntitySillyBox();
+        }
+        
+        public BlockSillyBox setName(String name) {
+            this.name = name;
+            return this;
+        }
+    }
+```
+
+Explanations:
+
+* The Block doesn't really know if it's full or not. That's why the associated `TileEntity` is for.
+* This block extends `BlockContainer`. This will automate the creation and destruction of the related `TileEntity` when the block is added or removed from the world.
+* The super class `BlockContainer` knows which `TileEntity` to instantiate 'cause we are telling exactly that in `getBlockEntity`.
+* `blockActivated` is called when the user right-clicks the block. We get the associated tile entity (the only way, it seems, is asking the `world` object which `TileEntity` is at the block's coordinates), then we call one of its method (which we'll implement later).
+* Resistance is 20.0F so this won't get destroyed by explosions. Save a valuable item in one of these boxes! (still useless, I know).
+* `idDropped` always returns the "empty" instance.
+
+Let's create two blocks in `mod_Example`: one to represent the box "full" and one to represent the box "empty". Note that this is only visual. The block is the same - the only thing which is different is the top texture.
+
+```java
+    blockSillyBoxEmpty = (BlockSillyBox) new BlockSillyBox (ModLoader.getBlockId(), false).setName("block.silly_block_empty");
+    blockSillyBoxFull = (BlockSillyBox) new BlockSillyBox (ModLoader.getBlockId(), true).setName("block.silly_block_full");
+    
+    blockSillyBoxFull.blockIndexInTexture = blockSillyBoxEmpty.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_box.png");
+    blockSillyBoxFull.topTextureIndex = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_box_top_full.png");
+    blockSillyBoxEmpty.topTextureIndex = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_box_top_empty.png");
+    
+    ModLoader.registerBlock(blockSillyBoxFull);
+    ModLoader.registerBlock(blockSillyBoxEmpty);
+```
+
+Now lets create a very simple tile entity to associate with our new block. This will perform the logic we explained before and, depending on the state (it is full or empty) it will remove the existing block and place the correct one.
+
+```java
+    package com.mojontwins.modloader;
+
+    import com.mojang.nbt.NBTTagCompound;
+
+    import net.minecraft.game.block.tileentity.TileEntity;
+    import net.minecraft.game.entity.other.EntityItem;
+    import net.minecraft.game.entity.player.EntityPlayer;
+    import net.minecraft.game.item.ItemStack;
+    import net.minecraft.game.level.World;
+
+    public class TileEntitySillyBox extends TileEntity {
+        ItemStack contents = null;
+        
+        public TileEntitySillyBox() {
+            // TODO Auto-generated constructor stub
+        }
+
+        public final void readFromNBT(NBTTagCompound var1) {
+            super.readFromNBT(var1);
+            this.contents = new ItemStack(var1);
+        }
+
+        public final void writeToNBT(NBTTagCompound var1) {
+            super.writeToNBT(var1);
+            contents.writeToNBT(var1);
+        }
+        
+        public void updateEntity() {
+        }
+        
+        public void putItem (EntityPlayer entityPlayer) {
+            World world = this.worldObj;
+            int x = this.xCoord, y = this.yCoord, z = this.zCoord;
+            
+            if (this.contents != null) {
+                // Give what's inside
+                
+                float px = world.random.nextFloat() * 0.7F + 0.15F;
+                float py = 1.0F;
+                float pz = world.random.nextFloat() * 0.7F + 0.15F;
+                EntityItem entityItem = new EntityItem(world, (float)x + px, (float)y + py, (float)z + pz, new ItemStack (this.contents.itemID, this.contents.stackSize, this.contents.itemDamage));
+                entityItem.delayBeforeCanPickup = 10;
+                world.spawnEntityInWorld(entityItem);
+                this.contents = null;
+
+            } else {
+                // Get new item
+            
+                ItemStack itemStack = entityPlayer.inventory.getCurrentItem();
+                if (itemStack != null) {
+                    this.contents = new ItemStack (itemStack.itemID, itemStack.stackSize, itemStack.itemDamage);
+                    entityPlayer.inventory.setInventorySlotContents(entityPlayer.inventory.currentItem, null);
+                } else this.contents = null;
+
+            }
+            
+            // Now update the block in the world. As the new block is placed, a new TileEntity will be generated.
+            // We don't want this, so we preserve `this` and then reset it.
+            TileEntity tileEntity = world.getBlockTileEntity(x, y, z);
+            
+            int blockID = contents == null ? mod_Example.blockSillyBoxEmpty.blockID : mod_Example.blockSillyBoxFull.blockID;
+            world.setBlockWithNotify(x, y, z, blockID);
+            world.setBlockTileEntity(x, y, z, tileEntity);
+        }
+        
+        public void onTileEntityRemoved (World world, int x, int y, int z) {
+            if (world.getBlockId(x, y, z) == 0) {
+                float px = world.random.nextFloat() * 0.7F + 0.15F;
+                float py = 1.0F;
+                float pz = world.random.nextFloat() * 0.7F + 0.15F;
+                EntityItem entityItem = new EntityItem(world, (float)x + px, (float)y + py, (float)z + pz, this.contents);
+                entityItem.delayBeforeCanPickup = 10;   
+                world.spawnEntityInWorld(entityItem);
+            }
+        }
+    }
+```
+
+Note: `onTileEntityRemoved` was not present in the original. I've added this 'cause I find it quite handy. Gets called when the TileEntity is removed. Note that whenever the block is changed from blockSillyBoxEmpty to blockSillyBoxFull and vice-versa, `onBlockRemoval` is called, and `BlockContainer.onBlockRemoval` calls `world.removeTileEntity`. So we have to detect *explicitly* that the new block in place is the empty block. 

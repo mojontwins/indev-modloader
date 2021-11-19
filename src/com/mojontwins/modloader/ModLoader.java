@@ -232,14 +232,14 @@ public class ModLoader {
     /*
      * Registers a new block
      */
-	public static void registerBlock (ModBlock block) throws Exception {
+	public static void registerBlock (Block block) throws Exception {
 		registerBlock (block, null);
 	}
 	
 	/*
 	 * This is basicly Risugami's method
 	 */
-	public static void registerBlock (ModBlock block, Class<?> class1) throws Exception {
+	public static void registerBlock (Block block, Class<?> class1) throws Exception {
 		if (block == null) throw new IllegalArgumentException("block parameter cannot be null.");
 		
 		int i = block.blockID;

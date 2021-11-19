@@ -102,6 +102,18 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/gui/GuiCrafting.java M
  
      protected final void drawGuiContainerForegroundLayer() {
 Only in MCP-LTS/src/minecraft/net/minecraft/client/particle: EntityStatusEffectFX.java
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/PlayerController.java MCP-LTS/src/minecraft/net/minecraft/client/player/PlayerController.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/PlayerController.java	2021-11-10 11:11:51.967441200 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/client/player/PlayerController.java	2021-11-18 23:07:16.570865700 +0100
+@@ -26,7 +26,7 @@
+         Block var5 = Block.blocksList[var4.getBlockId(var1, var2, var3)];
+         byte var6 = var4.getBlockMetadata(var1, var2, var3);
+         boolean var7 = var4.setBlockWithNotify(var1, var2, var3, 0);
+-        if (var5 != null && var7) {
++        if (var5 != null && var7) { 
+             this.mc.sndManager.playSound(var5.stepSound.stepSoundDir(), (float)var1 + 0.5F, (float)var2 + 0.5F, (float)var3 + 0.5F, (var5.stepSound.soundVolume + 1.0F) / 2.0F, var5.stepSound.soundPitch * 0.8F);
+             var5.onBlockDestroyedByPlayer(var4, var1, var2, var3, var6);
+         }
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/PlayerControllerSP.java MCP-LTS/src/minecraft/net/minecraft/client/player/PlayerControllerSP.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/PlayerControllerSP.java	2021-11-10 11:11:51.983064800 +0100
 +++ MCP-LTS/src/minecraft/net/minecraft/client/player/PlayerControllerSP.java	2021-11-12 13:56:37.865299700 +0100
@@ -417,6 +429,18 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/BlockFluid.java MC
  
      public AxisAlignedBB getCollisionBoundingBoxFromPool(int var1, int var2, int var3) {
          return null;
+diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/tileentity/TileEntity.java MCP-LTS/src/minecraft/net/minecraft/game/block/tileentity/TileEntity.java
+--- MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/tileentity/TileEntity.java	2021-11-10 11:11:52.498703100 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/block/tileentity/TileEntity.java	2021-11-18 23:22:46.973733000 +0100
+@@ -17,4 +17,8 @@
+ 
+     public void updateEntity() {
+     }
++    
++    // Added my ModLoader
++    public void onTileEntityRemoved(World world, int x, int y, int z) {
++    }
+ }
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java MCP-LTS/src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java	2021-11-10 11:11:52.514314200 +0100
 +++ MCP-LTS/src/minecraft/net/minecraft/game/block/tileentity/TileEntityFurnace.java	2021-11-11 11:14:44.455263300 +0100
@@ -949,7 +973,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemTool.java MCP-L
  }
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/level/World.java MCP-LTS/src/minecraft/net/minecraft/game/level/World.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/game/level/World.java	2021-11-10 11:11:52.779939900 +0100
-+++ MCP-LTS/src/minecraft/net/minecraft/game/level/World.java	2021-11-17 08:59:12.199006100 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/level/World.java	2021-11-18 23:30:17.495719700 +0100
 @@ -873,8 +873,16 @@
      public final boolean isWater(int var1, int var2, int var3) {
          return (var1 = this.getBlockId(var1, var2, var3)) > 0 && Block.blocksList[var1].material == Material.water;
@@ -1014,6 +1038,29 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/level/World.java MCP-LTS
              } else {
                  return null;
              }
+@@ -1553,7 +1568,12 @@
+     }
+ 
+     public final void removeBlockTileEntity(int var1, int var2, int var3) {
+-        this.list.remove(this.map.remove(var1 + (var2 << 10) + (var3 << 10 << 10)));
++        int index = var1 + (var2 << 10) + (var3 << 10 << 10);
++        TileEntity var5;
++        if ((var5 = (TileEntity)this.map.get(index)) != null) {
++        	var5.onTileEntityRemoved(this, var1, var2, var3);
++        }
++    	this.list.remove(this.map.remove(index));
+     }
+ 
+     public final TileEntity getBlockTileEntity(int var1, int var2, int var3) {
+@@ -1561,7 +1581,7 @@
+         TileEntity var5;
+         if ((var5 = (TileEntity)this.map.get(var4)) == null) {
+             int var6 = this.getBlockId(var1, var2, var3);
+-            ((BlockContainer)Block.blocksList[var6]).onBlockAdded(this, var1, var2, var3);
++            if (Block.blocksList[var6] != null) ((BlockContainer)Block.blocksList[var6]).onBlockAdded(this, var1, var2, var3);
+             var5 = (TileEntity)this.map.get(var4);
+         }
+ 
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java MCP-LTS/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java	2021-11-10 11:11:52.811206400 +0100
 +++ MCP-LTS/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java	2021-11-17 13:37:50.663812100 +0100
