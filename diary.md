@@ -7,12 +7,12 @@ This is the roadmap which will be constantly changing.
 * Create a basic ModBase class and make the system to automaticly run mod_Name classes.
 * [x] Basic ModBase class and mod_XXX importing.
 * [x] Use your mod class to add blocks.
-* [X] Use your mod class to add items.
+* [x] Use your mod class to add items.
 * [x] Use your mod class to add recipes of any kind.
-* [ ] Use your mod to add armor
-* [ ] Render blocks using custom renderers.
-* [ ] Use your mod class to add food.
-* [ ] Use your mod class to add tile entities.
+* [x] Use your mod to add armor
+* [x] Render blocks using custom renderers.
+* [x] Use your mod class to add food.
+* [x] Use your mod class to add tile entities.
 * [ ] Use your mod class to add entities.
 * [ ] Use your mod class to add new kind of terrain generation.
 * [ ] Use your mod class to add structures.
@@ -878,6 +878,10 @@ And so we can add the new recipe to `mod_Example`:
 ```java
     ModLoader.addSmelting(Block.cobblestone.blockID, Block.stone.blockID);
 ```
+
+### Custom fuel 
+
+TODO
 
 ## Another small hook
 
@@ -2803,3 +2807,6 @@ Note: `onTileEntityRemoved` was not present in the original. I've added this 'ca
 
 So it seems Indev is so simple that no TileEntity registering has to be done, just put your stuff. Time to put this to the reference docs.
 
+## The Clay Maker
+
+This one mixes water with stacks of dirt and, during daytime, turns dirt into clay. Lots to do, tho: first we have to create the Clay block, a bucket, and provide means to fill the bucket with water.

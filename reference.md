@@ -499,11 +499,191 @@ All that's left is being able to craft these new tools. Check *Smelting and Craf
 
 ### Armor
 
+In Indev, all armor items are instances of `ItemArmor`, which is a rather simple class. I've renamed the standard MCP identifiers to make it more understandable:
 
+```java
+    package net.minecraft.game.item;
+
+    public class ItemArmor extends Item {
+        private static final int[] damageReduceAmountArray = new int[]{3, 8, 6, 3};
+        private static final int[] maxDamageArray = new int[]{11, 16, 15, 13};
+        public final int armorType;
+        public final int damageReduceAmount;
+        public final int renderIndex;
+
+        public ItemArmor(int itemID, int strength, int renderType, int type) {
+            super(itemID);
+            this.armorType = type;
+            this.renderIndex = renderType;
+            this.damageReduceAmount = damageReduceAmountArray[type];
+            this.maxDamage = maxDamageArray[type] * 3 << strength;
+            this.maxStackSize = 1;
+        }
+    }
+```
+
+* `strength` is used to calculate the amount of damage each armor piece resists before breaking. Each type of armor piece takes a fixed base amount of damage which is then multiplied by 3 raised to the power of 'strength'. Strength seems to be:
+    * 0 for leather (named 'cloth'),
+    * 1 for chain,
+    * 2 for iron,
+    * 3 for diamond and
+    * 1 for gold
+
+* `renderType` is used by the renderer to index (0-4) this array which is used to select which texture is used to render the armor pieces on the payer (defined and used in `RenderPlayer`:
+
+```java
+    private static final String[] armorFilenamePrefix = new String[]{"cloth", "chain", "iron", "diamond", "gold"};
+```
+
+* `type` is:
+    * 0 Helmet
+    * 1 Chest
+    * 2 Leggins
+    * 3 Boots
+
+You should know that: 
+
+* The amount of damage an armour piece takes is fixed and doesn't depend on the material, only on the type, and is defined by the array `damageReduceAmountArray`.
+* The material only defines how long it takes the armor piece to break.
+* Gold and chain armor pieces are the same.
+
+In order to add new kinds of armor, with completely customizable stats, and custom graphics, would need extending `ItemArmor` and assigning custom values to `damageReduceAmount` and `maxDamage`, plus adding new items to the `armorFilenamePrefix` array we can index with new `renderType` values. ModLoader provides a method to add items to this array and retrieve the new item index so we can store it in our mod class.
+
+To make your life easier we have added the `ModItemArmor` class:
+
+```java
+    myArmor = new ModItemArmor (itemID, damageReduceAmount, maxDamage, type);
+```
+
+Where `type` would be your new material ID. To get a new material ID you have to call `ModLoader.AddArmor`: 
+
+```java
+    public static int addArmor(String s) throws Exception;
+```
+
+Where `s` is a filename prefix. Minecraft will fetch the armor textures from two png files in the `/armor` directory: `<material>_1.png` and `<material>_2.png`. You can use the existing armor textures as templates when drawing your own.
+
+As an example, we are going to add a full Steel Armor which is 1.5 the stats of the Iron armor. If you have followed me until this point you'll be able to work out the numbers. We've also added `steel_1.png` and `steel_2.png` with the new textures to an `/armor` folder in our project, and the new item textures to our textures folder.
+
+```java
+    public static ModItemArmor itemSteelHelmet;
+    public static ModItemArmor itemSteelChest;
+    public static ModItemArmor itemSteelLeggins;
+    public static ModItemArmor itemSteelBoots;
+```
+
+```java 
+    int steelRenderType = ModLoader.addArmor("steel");
+    
+    itemSteelHelmet = new ModItemArmor(ModLoader.getItemId(), 4, 149, steelRenderType, 0);
+    itemSteelHelmet.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_helmet.png"));
+    
+    itemSteelChest = new ModItemArmor(ModLoader.getItemId(), 9, 216, steelRenderType, 1);
+    itemSteelHelmet.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_chest.png"));
+    
+    itemSteelLeggins = new ModItemArmor(ModLoader.getItemId(), 6, 202, steelRenderType, 2);
+    itemSteelHelmet.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_legs.png"));
+
+    itemSteelBoots = new ModItemArmor(ModLoader.getItemId(), 3, 175, steelRenderType, 3);
+    itemSteelBoots.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_steel_boots.png")); 
+```
+
+and
+
+```java
+    ModLoader.addRecipe(new ItemStack(itemSteelHelmet, 1), new Object [] {
+        "###", "# #", "   ",
+        '#', itemSteelIngot
+    });
+        
+    ModLoader.addRecipe(new ItemStack(itemSteelChest, 1), new Object [] {
+        "# #", "###", "###",
+        '#', itemSteelIngot
+    });
+    
+    ModLoader.addRecipe(new ItemStack(itemSteelLeggins, 1), new Object [] {
+        "###", "# #", "# #",
+        '#', itemSteelIngot
+    });
+        
+    ModLoader.addRecipe(new ItemStack(itemSteelBoots, 1), new Object [] {
+        "# #", "# #",
+        '#', itemSteelIngot
+    });
+```
 
 ### Food
 
+Food items can be eaten and restore health. They extend `ItemFood` and call the constructor with `itemID, healAmount`. `healAmount` is expressed in half hearts. The base `ItemFood` class overrides the `onItemRightClick` method with this code:
+
+```java
+    public ItemStack onItemRightClick(ItemStack var1, World var2, EntityPlayer var3) {
+        --var1.stackSize;
+        var3.heal(this.healAmount);
+        return var1;
+    }    
+```
+
+`ItemSoup`, which extends `ItemFood`, in turns overrides it as well with this:
+
+```java
+    public ItemStack onItemRightClick(ItemStack var1, World var2, EntityPlayer var3) {
+        super.onItemRightClick(var1, var2, var3);
+        return new ItemStack(Item.bowlEmpty);
+    }
+```
+
+So getting new food to Indev is pretty straightforward. If you can do with any of these implementations, just make a new food item using one of those classes. If you need further customization, extend from `ItemFood` and override `onItemRightClick`, modifying the `ItemStack` as needed. Note how you get the itemstack, the world, and the player entity. 
+
+You can use food to give the player status effects.
+
 # Smelting and crafting
+
+## Crafting recipes
+
+To add crafting recipes you use the same method as if you were editing base classes, but calling `ModLoader.addRecipe` instead. `addRecipe` takes an `ItemStack` representing the results and an object representing the actual recipe, like this:
+
+```java
+    ModLoader.addRecipe(new ItemStack(blockStoneBricks, 4), new Object [] {
+        "XX", "XX",
+        'X', Block.stone
+    });
+```
+
+The recipe object starts wit one to three strings. All strings should be the same length. You can pad with spaces if needed. Different arbitrary characters in the strings represent items or blocks. After the strings, there should be a list of pairs (char, block/item) which give actual meaning to the arbitrary characters in the strings. For example:
+
+```java
+    ModLoader.addRecipe(new ItemStack(Block.cobblestone, 1), new Object [] {
+        "XXX", "XXX", "XXX",
+        'X', itemPebble
+    });
+
+    ModLoader.addRecipe(new ItemStack(itemSteelSword,1), new Object [] {
+        " # ", " # ", " X ",
+        '#', itemSteelIngot,
+        'X', Item.stick
+    });
+
+    ModLoader.addRecipe(new ItemStack(itemSteelPickaxe,1), new Object [] {
+        "###", " X ", " X ",
+        '#', itemSteelIngot,
+        'X', Item.stick
+    });
+```
+
+As you see, you can use your own blocks/items.
+
+## Smelting recipes
+
+Smelting recipes are even more simple:
+
+```java
+    ModLoader.addSmelting(Block.cobblestone.blockID, Block.stone.blockID);
+```
+
+Where the first parameter is the input, and the second parameter is the output.
+
+### Custom fuel
 
 # Playing around
 
