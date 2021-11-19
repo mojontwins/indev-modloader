@@ -2800,3 +2800,6 @@ Now lets create a very simple tile entity to associate with our new block. This 
 ```
 
 Note: `onTileEntityRemoved` was not present in the original. I've added this 'cause I find it quite handy. Gets called when the TileEntity is removed. Note that whenever the block is changed from blockSillyBoxEmpty to blockSillyBoxFull and vice-versa, `onBlockRemoval` is called, and `BlockContainer.onBlockRemoval` calls `world.removeTileEntity`. So we have to detect *explicitly* that the new block in place is the empty block. 
+
+So it seems Indev is so simple that no TileEntity registering has to be done, just put your stuff. Time to put this to the reference docs.
+
