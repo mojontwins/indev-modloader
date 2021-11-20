@@ -2807,6 +2807,94 @@ Note: `onTileEntityRemoved` was not present in the original. I've added this 'ca
 
 So it seems Indev is so simple that no TileEntity registering has to be done, just put your stuff. Time to put this to the reference docs.
 
-## The Clay Maker
+## Entity experiments and research
 
-This one mixes water with stacks of dirt and, during daytime, turns dirt into clay. Lots to do, tho: first we have to create the Clay block, a bucket, and provide means to fill the bucket with water.
+I'll spend some time trying to understand how entities work in Indev. What do they need to work, how they are spawned, and how you can interact with them. First I will be examining mobs. I will try to understand what it takes to put my own move. The first one would be a very simple copy of Zombies - the Husks, which will not burn in the sun and will spawn instead of zombies if the floor is sand.
+
+It seems that the bare minimum that an `Entity` that extends from `EntityMob` is:
+
+```java
+public class EntityBlah extends EntityMob {
+    public EntityZombie(World var1) {
+        super(var1);
+
+        // This monster texture
+        this.texture = "/mob/blah.png";
+
+        // This monster base speed
+        this.moveSpeed = 0.5F;
+
+        // This monster attack strength
+        this.attackStrength = 5;
+    }
+
+    public final void onLivingUpdate() {
+        float var1;
+
+        // Special stuff for this kind of mob. 
+        // For example: burn in the sun
+        if (this.worldObj.skylightSubtracted > 7 && (var1 = this.getEntityBrightness(1.0F)) > 0.5F && this.worldObj.canBlockSeeTheSky((int)this.posX, (int)this.posY, (int)this.posZ) && this.rand.nextFloat() * 30.0F < (var1 - 0.4F) * 2.0F) {
+            this.fire = 300;
+        }
+
+        // General stuff for monsters (move around, etc)
+        super.onLivingUpdate();
+    }
+
+    protected final String getEntityString() {
+        // Give this monster a name
+        return "Blah";
+    }
+
+    protected final int scoreValue() {
+        // What the monster drops when killed
+        return Item.feather.shiftedIndex;
+    }
+}
+```
+
+Now I'll try to understand how mobs spawn. We have the `Spawner` class, which has a `performSpawning` method. All monster & creature spawning is performed in this method, and absolutely everything is hardcoded. Let's break it down so I can decide the hooks which are needed to add your own `EntityLiving`s.
+
+## The `performSpawning` class
+
+First, the maximum posible amount of creatures in the world is calculated and stored in `var1`. First, it depends on the level size:
+
+```java
+    int var1 = this.worldObj.width * this.worldObj.length * this.worldObj.height * 20 / 64 / 64 / 64 / 2;
+```
+
+Then, depending on the difficulty level, this value is modified. For level 0, divided by 4. For level 1, multiplied by 3/4. For level 2, it stays untouched, and for level 3 it is multiplied by 1.5.
+
+**HOOK**: So we have a good place to add a new hook: `var1 = ModLoader.spawnerSetMaxHostileMobs (var1, this.worldObj);` which, by default, shoud return `var1`.
+
+Then it calculates `var2` = the world horizontal plane size divided by 4000 and `var3` = the amount of creatures already spawned. `var2` will be used to set a max number of *non-hostile* creatures, so:
+
+**HOOK**: `var2 = ModLoader.spawnerSetMaxNonHostileMobs (var1, this.worldObj)`.
+
+Next part will attempt to spawn a creature 4 times. It calculates a random location in the world `(var8, var9, var10)` and, most importantly, *it selects a random type of mob* in `var7` calculation a random value between 0 and 4.
+
+**HOOK**: `var7 = ModLoader.spawnerSelectMonster (var7)`. In our mod, we would apply a random chance and substitute the value if suited, or simply return `var7`.
+
+With `(x, y, z)` and type of creature select, it tries then twice. Resets the coodinate to `(x, y, z)` and then it iterates three times in which it moves the position a random amount (-5..5) for x and z and (-1..1) for y. If still inside the world, it makes sure that the distance to the player squared is < 1024.0F (around 32 blocks)
+
+**HOOK**: Now we have a definitive (x, y, z) position and a type we may want to change the type, so `var7 = ModLoader.spawnerSelectMonsterBasedOnPosition (var7, this.worldObj, x, y, z)`.
+
+At this point, the engine checks `var7` and upon it's value it creates a new `EntityXXX (world)`. 
+
+**HOOK** in the `default` case, call `var23 = ModLoader.spawnMonster (var7, var22.worldObj)`, which should return `null` on failure.
+
+*Note*: I've added a case for `var7 == 5` (which won't happen without modifications) to spawn a giant zombie.
+
+The last thing in this set of loops is checking if the entity can stay. If checks if the block at current `(x, y, z)` and the block below it are opaque, then it calls the new entity's `canSpawnHere`, calculates a random angle, and then spawns the hostile entity in the world.
+
+The next section attempts to spawn non hostile mobs.
+
+First it gets the amount of animal entities in the world, and, as in with mosters, it iterates 4 times. For each time, it won't let the total amount of non hostile mobs surpass the max density value calculated above (in `var2`) Then it works the same way the hostile mobs spawner loop, so I'm placing the same hooks:
+
+**HOOK** `var7 = ModLoader.spawnerSelectAnimal (var7); `
+
+**HHOK** `var7 = ModLoader.spawnerSelectAnimalBasedOnPosition (var7, this.worldObj, x, y, z);`
+
+**HOOK** `var23 = ModLoader.spawnAnimal (var7, var22.worldObj);` and, finally
+
+The plan is adding these hooks and attempt to add some simple entities increasing in complexity and see if new hooks are needed.
