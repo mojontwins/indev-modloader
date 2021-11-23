@@ -1,6 +1,5 @@
 package com.mojontwins.modloader;
 
-import java.util.Iterator;
 import java.util.Random;
 
 import net.minecraft.client.Minecraft;
@@ -76,5 +75,61 @@ abstract class BaseMod {
 	 */
 	public float hookEntitySpeedModifier (EntityLiving entityLiving) {
 		return 1.0F;
+	}
+	
+	/*
+	 * Called by the creature spawner. Must return maxCreatures
+	 */
+	public int spawnerSetMaxHostileMobs (int maxCreatures, World world) {
+		return maxCreatures;
+	}
+
+	/*
+	 * Called by the creature spawner. Must return maxCreatures
+	 */
+	public int spawnerSetMaxNonHostileMobs (int maxCreatures, World world) {
+		return maxCreatures;
+	}
+
+	/*
+	 * Called by the creature spawner. Must return entityId
+	 */
+	public int spawnerSelectMonster (int entityID) {
+		return entityID;
+	}
+	
+	/*
+	 * Called by the creature spawner. Must return entityId
+	 */
+	public int spawnerSelectMonsterBasedOnPosition (int entityID, World world, int x, int y, int z) {
+		return entityID;
+	}
+
+	/*
+	 * Called by the creature spawner. Return a new entity object based on entityID
+	 */
+	public Object spawnMonster (int entityID, World world) {
+		return null;
+	}
+	
+	/*
+	 * Called by the creature spawner. Must return entityId
+	 */
+	public int spawnerSelectAnimal (int entityID) {
+		return entityID;
+	}
+	
+	/*
+	 * Called by the creature spawner. Must return entityId
+	 */
+	public int spawnerSelectAnimalBasedOnPosition (int entityID, World world, int x, int y, int z) {
+		return entityID;
+	}
+
+	/*
+	 * Called by the creature spawner. Return a new entity object based on entityID
+	 */
+	public  Object spawnAnimal (int entityID, World world) {
+		return null;
 	}
 }

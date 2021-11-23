@@ -685,6 +685,8 @@ Where the first parameter is the input, and the second parameter is the output.
 
 ### Custom fuel
 
+TODO
+
 # Playing around
 
 ## Substituting an existing standard item AKA silk touch golden pickaxe
@@ -1158,6 +1160,165 @@ There used to be a mod which created a special block to make clay (this was arou
 
 We'll need a custom GUI for this. We'll take the existing furnace GUI as a template to create ours. 
 
+# Animal & Monster Entities
+
+The way Vanilla Indev works is by selecting a random number from 0 to the number of different mobs of each kind minus one, then, if possible, spawn the selected mob in the world.
+
+In ModLoader, I've added a collection of hooks and a registering system so you can add your own mobs to be selected at random alongside the rest of the mobs, or control when or how they are selected if you prefer.
+
+To add a new mod you need at least one new class: the one which describes your `Entity`. You can check at the examples included in this repository or base yours on already existing entities, for example an `EntityHusk` based on `EntityZombies`. Sometimes you'll need a custom renderer, extending from `Render`, and a model class, extending `BaseModel`. 
+
+## Add a new monster or animal and let the engine select it.
+
+* Add your `Entity`. 
+* Add your `Render` and `BaseModel` if needed.
+* Get a new entity ID from ModLoader:
+
+```java
+    entityTestID = ModLoader.getNewMobID();
+```
+
+* Configure a renderer for your Entity:
+
+```java
+    ModLoader.addEntityRenderer(EntitTest.class, new RenderTest(new ModelTest (), 0.5F));
+```
+
+* Register your entity. 
+
+```java
+    ModLoader.registerMonsterEntity (entityTestID, EntitTest.class);
+```
+
+(replace with `registerAnimalEntity` to register a new animal).
+
+## Add a new monster or animal and control how it is spawned
+
+To have complete control, perform all the steps mentioned above but the last: don't register your mob, so the engine never selects it automaticly. To select and then spawn your unregistered mobs, you have these hooks (for monsters; replace *Monster* by *Animal* in the method name for animals):
+
+```java
+    /*
+     * Called by the creature spawner. Must return entityId
+     */
+    public int spawnerSelectMonster (int entityID) {
+        return entityID;
+    }
+    
+    /*
+     * Called by the creature spawner. Must return entityId
+     */
+    public int spawnerSelectMonsterBasedOnPosition (int entityID, World world, int x, int y, int z) {
+        return entityID;
+    }
+
+    /*
+     * Called by the creature spawner. Return a new entity object based on entityID
+     */
+    public Object spawnMonster (int entityID, World world) {
+        return null;
+    }
+```
+
+To understand these hooks better, it's very useful to understand how Indev works:
+
+1.- First select an entity ID at random. `spawnerSelectMonster` is called at this point, and the selected ID is passed. *You can modify this number and return it to change the selected entity*.
+2.- Then it iterates a number of times finding a good spot. It selects a coordinate (x, y, z) in the world. `spawnerSelectMonsterBasedOnPosition` is called then. It is pased the selected ID again, a reference to the world, and the coordinates. Based on the coordinates and/or what's in the world, *You can modify this number and return it to change the selected entity*.
+3.- Finally, it creates a new object of the correct `Entity` class based on the selected entity ID. If the ID is out of bounds (i.e. not registered), it will fail and call `spawnMonster`. If the passed `entityID` is satisfactory, *you* must create the entity object using your custom entity class and the `world` parameter you get.
+4.- Then, the `getCanSpawnHere` method of your entity class will be called, and if that returns true and other conditions are met, the entity is spawned.
+
+## Example: The Husk
+
+Husks are almost like plain zombies but spawn on sand and don't burn in the sun. They also use a custom texture. So we start by getting the `EntityZombie` class, and putting all the code in there in our new `EntityHusk` class, changing what's necessary:
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.entity.monster.EntityMob;
+    import net.minecraft.game.item.Item;
+    import net.minecraft.game.level.World;
+
+    public class EntityHusk extends EntityMob {
+        public EntityHusk(World var1) {
+            super(var1);
+            this.texture = "/mob/husk.png";
+            this.moveSpeed = 0.7F;
+            this.attackStrength = 7;
+        }
+
+        public final void onLivingUpdate() {
+            // Nothing special for the moment
+            super.onLivingUpdate();
+        }
+
+        protected final String getEntityString() {
+            return "Husk";
+        }
+
+        protected final int scoreValue() {
+            return Item.feather.shiftedIndex;
+        }
+        
+        public boolean getCanSpawnHere(float var1, float var2, float var3) {
+            this.setPosition(var1, var2 + this.height / 2.0F, var3);
+            return this.worldObj.checkIfAABBIsClear1(this.boundingBox) && this.worldObj.getCollidingBoundingBoxes(this.boundingBox).size() == 0 && !this.worldObj.getIsAnyLiquid(this.boundingBox);
+        }
+        
+        protected String getLivingSound() {
+            return "mob.zombie1";
+        }
+
+        protected String getHurtSound() {
+            return "mob.zombiehurt1";
+        }
+
+        protected String getDeathSound() {
+            return "mob.zombiedeath";
+        }
+    }
+```
+
+Changes are:
+
+* `this.texture` has been altered. I've created a new texture and put it in `src/mob/husk.png`. It uses the `zombie.png` texture as a template.
+* `this.moveSpeed` and `this.attackStrength` have been increased. Husks are stronger.
+* `getEntityString` returns `Husk` rather than `Zombie`.
+* I haven't modified `scoreValue`, but it's supposed to be return the ID of the item it drops.
+* `onLivingUpdate` just calls the `super` here. There was a check to set the entity on fire I've removed.
+* `getCanSpawnHere` checked if the light was dim enough then called the super. I've navigated to the super and pasted the code here, as Husks don't need darkess to spawn.
+
+For rendering, we'll use the same renderer as the Zombie, which happens to be `RenderLiving` with a `ModelZombie` model. So next step is getting an ID for the new entity and configuring a renderer in our mod class:
+
+```java
+    entityHuskMobID = ModLoader.getNewMobID();
+    ModLoader.addEntityRenderer(EntityHusk.class, new RenderLiving(new ModelZombie (), 0.5F));
+```
+
+We don't want Husks to be spawned naturally. What we want to do is that Zombies which would spawn on sand become Husks. So we **don't register** this mob, and use the hooks instead.
+
+We'll let the engine select the monster and decide a set of coordinates. *Then* we'll check if the coordinates are on a sand block and the selected monster is a Zombie to change it for a husk. So we must add code to the `spawnerSelectMonsterBasedOnPosition` hook in our mod class:
+
+```java
+    public int spawnerSelectMonsterBasedOnPosition (int entityID, World world, int x, int y, int z) {
+        // If it's a Zombie and it's been placed on sand...
+        if (entityID == 3 && (world.getBlockId(x, y, z) == Block.sand.blockID || world.getBlockId(x, y - 1, z) == Block.sand.blockID)) {
+            System.out.println ("Zombie @ " + x + ", " + z + " is now a Husk!");
+            // It's now a husk!
+            entityID = entityHuskMobID; 
+        }
+        return entityID;
+    }
+```
+
+`3` is the entityID of Zombies (you can check `net.minecraft.game.level.Spawner` for a complete list). If the block at the selected spawn point is sand or the block below it is sand, change the ID for that of our Husk. After this change, if `entityID` gets modified and it gets the value of `entityHuskMobID`, when the engine attempts to create the new Entity class it will fail as this ID is not registered. So it will call `spawnMonster` where we are in charge of creating the `Entity`:
+
+```java
+    public Object spawnMonster (int entityID, World world) {        
+        if (entityID == entityHuskMobID) return new EntityHusk(world);
+        
+        return null;
+    }
+```
+
 # Hooks
 
 I've added a number of hooks - modifications to the base classes to call methods from `BaseMod` (which you can override in your mod) to modify several game variables or add stuff. These are the hooks you can use from you mod.
@@ -1510,3 +1671,6 @@ Now what's left is creating the objects in the mod class:
     itemBucketWater = new ItemBucket(ModLoader.getItemId(), Block.waterStill.blockID).setMaxStackSize(1).setName("item.bucket_water");
     itemBucketWater.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_bucket_water.png"));
 ```
+
+# Full Example: Add slimes, and slime balls, and a slime bucket!
+

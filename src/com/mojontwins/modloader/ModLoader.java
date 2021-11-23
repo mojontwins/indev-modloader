@@ -28,12 +28,14 @@ import javax.imageio.ImageIO;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderBlocks;
 import net.minecraft.client.renderer.RenderEngine;
+import net.minecraft.client.renderer.entity.Render;
 import net.minecraft.game.block.Block;
 import net.minecraft.game.entity.Entity;
 import net.minecraft.game.entity.EntityLiving;
 import net.minecraft.game.item.Item;
 import net.minecraft.game.item.ItemBlock;
 import net.minecraft.game.item.ItemStack;
+import net.minecraft.game.level.Spawner;
 import net.minecraft.game.level.World;
 import net.minecraft.game.level.generator.LevelGenerator;
 
@@ -104,7 +106,13 @@ public class ModLoader {
 	private static final Map<Integer,BaseMod> blockModels = new HashMap<Integer,BaseMod> ();
     private static final Map<Integer,Boolean> blockSpecialInv = new HashMap<Integer,Boolean> ();
     private static int nextBlockModelID = 1000;
+    
+    // Used to modify RenderManager.entityRenderMap
+    private static HashMap<Class<?>,Render> entityRenderMap = new HashMap<Class<?>,Render>();
 	
+    // A sequencer for mob IDs used in Spawner
+    private static int currentMobID = 1000;
+    
 	public ModLoader () {
 		
 	}
@@ -128,7 +136,7 @@ public class ModLoader {
 		    field_armorList = (net.minecraft.client.renderer.entity.RenderPlayer.class).getDeclaredFields()[3];
 		    field_modifiers.setInt(field_armorList, field_armorList.getModifiers() & 0xffffffef);
 		    field_armorList.setAccessible(true);
-			
+		    			
 	        // Get a path to the minecraft jar.			
 	        File file;
 	
@@ -645,5 +653,103 @@ public class ModLoader {
             return basemod.renderWorldBlock(renderblocks, world, x, y, z, block, renderType);
         }
     }
+
+    /*
+     * Methods to customize the spawner
+     */
+    
+    public static int spawnerSetMaxHostileMobs (int maxCreatures, World world) {
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+    		maxCreatures = ((BaseMod)iterator.next()).spawnerSetMaxHostileMobs(maxCreatures, world);
+        }
+    	return maxCreatures;
+    }
+    
+    public static int spawnerSetMaxNonHostileMobs (int maxCreatures, World world) {
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+    		maxCreatures = ((BaseMod)iterator.next()).spawnerSetMaxNonHostileMobs(maxCreatures, world);
+        }
+    	return maxCreatures;
+    }
+    
+    public static int spawnerSelectMonster (int entityID) {
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+    		entityID = ((BaseMod)iterator.next()).spawnerSelectMonster(entityID);
+        }
+    	return entityID;
+    }
+    
+    public static int spawnerSelectMonsterBasedOnPosition (int entityID, World world, int x, int y, int z) {
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+    		entityID = ((BaseMod)iterator.next()).spawnerSelectMonsterBasedOnPosition(entityID, world, x, y, z);
+        }
+    	return entityID;
+    }
+    
+    public static Object spawnMonster (int entityID, World world) {
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+    		Object entity = ((BaseMod)iterator.next()).spawnMonster(entityID, world);
+    		if (entity != null) return entity;
+        }
+    	return null;
+    }
+    
+    public static int spawnerSelectAnimal (int entityID) {
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+    		entityID = ((BaseMod)iterator.next()).spawnerSelectAnimal(entityID);
+        }
+    	return entityID;
+    }
+    
+    public static int spawnerSelectAnimalBasedOnPosition (int entityID, World world, int x, int y, int z) {
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+    		entityID = ((BaseMod)iterator.next()).spawnerSelectAnimalBasedOnPosition(entityID, world, x, y, z);
+        }
+    	return entityID;
+    }
+    
+    public static Object spawnAnimal (int entityID, World world) {
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+    		Object entity = ((BaseMod)iterator.next()).spawnAnimal(entityID, world);
+    		if (entity != null) return entity;
+        }
+    	return null;
+    }
+    
+    /*
+     * Add a new entry to RenderManager.entityRenderMap
+     */
+	public static void addEntityRenderer (Class<?> entityClass, Render render) throws Exception {
+    	entityRenderMap.put(entityClass, render);
+    }
+    
+	/*
+	 * Gets an entity render
+	 */
+	public static Render getEntityRender (Class<?> entityClass) {
+		return entityRenderMap.get(entityClass);
+	}
+	
+    /*
+     * Simple sequencer
+     */
+    public static int getNewMobID() {
+    	return currentMobID ++;
+    }
+    
+    /*
+     * Register new monster mobs
+     */    
+    public static void registerMonsterEntity (int entityID, Class<? extends Entity> entityClass) {
+    	Spawner.availableMonsterEntities.put(entityID, entityClass);
+    }
+    
+    /*
+     * Register new animal mobs
+     */    
+    public static void registerAnimalEntity (int entityID, Class<? extends Entity> entityClass) {
+    	Spawner.availableAnimalEntities.put(entityID, entityClass);
+    }
+    
     
 }

@@ -6,8 +6,10 @@ import com.mojontwins.modloader.entity.status.Status;
 import com.mojontwins.modloader.entity.status.StatusPoisoned;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.model.ModelZombie;
 import net.minecraft.client.renderer.RenderBlocks;
 import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.entity.RenderLiving;
 import net.minecraft.game.block.Block;
 import net.minecraft.game.block.Material;
 import net.minecraft.game.entity.other.EntityItem;
@@ -41,6 +43,9 @@ public class mod_Example extends BaseMod {
 	public static BlockSillyBox blockSillyBoxFull;
 	
 	public static int blockLilypadRenderID;
+	
+	public static int entityHuskMobID;
+	public static int entitySlimeMobID;
 	
 	public void load () throws Exception {
 		blockStoneBricks = new BlockStoneBricks(ModLoader.getBlockId (), Material.rock).setBlockHardness(1.5F).setBlockResistance(1.5F).setName("block.stone_bricks");
@@ -156,6 +161,17 @@ public class mod_Example extends BaseMod {
 		
 		ModLoader.registerBlock(blockSillyBoxFull);
 		ModLoader.registerBlock(blockSillyBoxEmpty);
+		
+		// Add husks
+		
+		entityHuskMobID = ModLoader.getNewMobID();
+		ModLoader.addEntityRenderer(EntityHusk.class, new RenderLiving(new ModelZombie (), 0.5F));
+		// Note how husks are NOT registered as monsters as we don't want the engine to auto-select them.
+		
+		// Add slimes
+		entitySlimeMobID = ModLoader.getNewMobID();
+		ModLoader.addEntityRenderer(EntitySlime.class, new RenderSlime(new ModelSlime (16), new ModelSlime(0), 0.25F));
+		ModLoader.registerMonsterEntity (entitySlimeMobID, EntitySlime.class);
 	}
 	
 	public void renderInvBlock(RenderBlocks renderblocks, Block block, int renderType) {
@@ -268,4 +284,20 @@ public class mod_Example extends BaseMod {
 		
 		return false;
 	}	
+	
+    public int spawnerSelectMonsterBasedOnPosition (int entityID, World world, int x, int y, int z) {
+    	// If it's a Zombie and it's been placed on sand...
+    	if (entityID == 3 && (world.getBlockId(x, y, z) == Block.sand.blockID || world.getBlockId(x, y - 1, z) == Block.sand.blockID)) {
+    		System.out.println ("Zombie @ " + x + ", " + z + " is now a Husk!");
+        	// It's now a husk!
+        	entityID = entityHuskMobID; 
+        }
+        return entityID;
+    }
+
+    public Object spawnMonster (int entityID, World world) {    	
+    	if (entityID == entityHuskMobID) return new EntityHusk(world);
+    	
+        return null;
+    }
 }

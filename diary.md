@@ -3276,4 +3276,265 @@ Oh my gosh - this has a resources renderer. I didn't know this was the case for 
 
 Anyways, let's add to the mix the new particle FX. How can I add particle FX from ModLoader? Let's leave this for now. I'd have to have a way to override the textures in this module and I'm not quite sure how to do it. Is that even possible in Risugami's ModLoader?
 
-OK - let's do this. No textures for the moment. Port the Entity and the Render and see if it, at least, compiles.
+OK - let's do this. No textures for the moment. Port the Entity and the Render and see if it, at least, compiles. AND IT WORKS. Those are the modified classes:
+
+```java
+    package com.mojontwins.modloader;
+
+    import com.mojang.nbt.NBTTagCompound;
+
+    import net.minecraft.game.entity.Entity;
+    import net.minecraft.game.entity.EntityLiving;
+    import net.minecraft.game.entity.player.EntityPlayer;
+    import net.minecraft.game.item.Item;
+    import net.minecraft.game.level.World;
+    import util.MathHelper;
+
+    public class EntitySlime extends EntityLiving {
+        public float squishFactor;
+        public float prevSquishFactor;
+        private int slimeJumpDelay = 0;
+        public int size = 1;
+
+        public EntitySlime(World var1) {
+            super(var1);
+            this.texture = "/mob/slime.png";
+            this.size = 1 << this.rand.nextInt(3);
+            this.yOffset = 0.0F;
+            this.slimeJumpDelay = this.rand.nextInt(20) + 10;
+            this.setSlimeSize(this.size);   
+        }
+        
+        public void setSlimeSize(int var1) {
+            this.size = var1;
+            this.setSize(0.6F * (float)var1, 0.6F * (float)var1);
+            this.health = var1 * var1;
+            this.setPosition(this.posX, this.posY, this.posZ);
+        }
+
+        public void writeEntityToNBT(NBTTagCompound var1) {
+            super.writeEntityToNBT(var1);
+            var1.setInteger("Size", this.size - 1);
+        }
+
+        public void readEntityFromNBT(NBTTagCompound var1) {
+            super.readEntityFromNBT(var1);
+            this.size = var1.getInteger("Size") + 1;
+        }
+
+        public void onEntityUpdate() {
+            this.prevSquishFactor = this.squishFactor;
+            boolean var1 = this.onGround;
+            super.onEntityUpdate();
+            if (this.onGround && !var1) {
+                for(int var2 = 0; var2 < this.size * 8; ++var2) {
+                    float var3 = this.rand.nextFloat() * 3.1415927F * 2.0F;
+                    float var4 = this.rand.nextFloat() * 0.5F + 0.5F;
+                    float var5 = MathHelper.sin(var3) * (float)this.size * 0.5F * var4;
+                    float var6 = MathHelper.cos(var3) * (float)this.size * 0.5F * var4;
+                    // TODO - I'll have to implement this new particle (original "slime")
+                    this.worldObj.spawnParticle("splash", this.posX + (float)var5, this.boundingBox.minY, this.posZ + (float)var6, 0.0F, 0.0F, 0.0F);
+                }
+
+                if (this.size > 2) {
+                    // This method exists at World
+                    this.worldObj.playSoundAtEntity(this, "mob.slime", 1.0F, ((this.rand.nextFloat() - this.rand.nextFloat()) * 0.2F + 1.0F) / 0.8F);
+                }
+
+                this.squishFactor = -0.5F;
+            }
+
+            this.squishFactor *= 0.6F;
+        }
+        
+        protected Entity findPlayerToAttack() {
+            return this.worldObj.playerEntity.getDistanceSqToEntity(this) < 256.0F ? this.worldObj.playerEntity : null;
+        }
+        
+        protected void updatePlayerActionState() {
+            Entity var1 = this.findPlayerToAttack();
+            if (var1 != null) {
+                this.faceEntity(var1, 10.0F);
+            }
+
+            if (this.onGround && this.slimeJumpDelay-- <= 0) {
+                this.slimeJumpDelay = this.rand.nextInt(20) + 10;
+                if (var1 != null) {
+                    this.slimeJumpDelay /= 3;
+                }
+
+                this.isJumping = true;
+                if (this.size > 1) {
+                    this.worldObj.playSoundAtEntity(this, "mob.slime", 1.0F, ((this.rand.nextFloat() - this.rand.nextFloat()) * 0.2F + 1.0F) * 0.8F);
+                }
+
+                this.squishFactor = 1.0F;
+                this.moveStrafing = 1.0F - this.rand.nextFloat() * 2.0F;
+                this.moveForward = (float)(1 * this.size);
+            } else {
+                this.isJumping = false;
+                if (this.onGround) {
+                    this.moveStrafing = this.moveForward = 0.0F;
+                }
+            }
+        }
+        
+        public void setEntityDead() {
+            if (this.size > 1 && this.health == 0) {
+                for(int var1 = 0; var1 < 4; ++var1) {
+                    float var2 = ((float)(var1 % 2) - 0.5F) * (float)this.size / 4.0F;
+                    float var3 = ((float)(var1 / 2) - 0.5F) * (float)this.size / 4.0F;
+                    EntitySlime var4 = new EntitySlime(this.worldObj);
+                    var4.setSlimeSize(this.size / 2);
+                    // Change this by setPositionAndRotation
+                    var4.setPositionAndRotation(this.posX + var2, this.posY + 0.5F, this.posZ + var3, this.rand.nextFloat() * 360.0F, 0.0F);
+                    this.worldObj.spawnEntityInWorld(var4);
+                }
+            }
+
+            super.setEntityDead();
+        }
+        
+        public void onCollideWithPlayer(EntityPlayer var1) {
+            float distance = (0.6F * this.size);
+            if (this.size > 1 && this.canEntityBeSeen(var1) && (double)this.getDistanceSqToEntity(var1) < distance * distance && var1.attackEntityFrom(this, this.size)) {
+                this.worldObj.playSoundAtEntity(this, "mob.slimeattack", 1.0F, (this.rand.nextFloat() - this.rand.nextFloat()) * 0.2F + 1.0F);
+            }
+
+        }   
+        
+        protected String getHurtSound() {
+            return "mob.slime";
+        }
+
+        protected String getDeathSound() {
+            return "mob.slime";
+        }
+
+        protected final int scoreValue() {
+            // TODO - Add item slimeball
+            return this.size == 1 ? Item.coal.shiftedIndex : 0;
+        }
+
+        public boolean getCanSpawnHere(float var1, float var2, float var3) {
+            this.setPosition(var1, var2 + this.height / 2.0F, var3);
+            return this.worldObj.checkIfAABBIsClear1(this.boundingBox) && this.worldObj.getCollidingBoundingBoxes(this.boundingBox).size() == 0
+                && this.posY < this.worldObj.waterLevel;
+        }
+
+        protected float getSoundVolume() {
+            return 0.6F;
+        }
+    }
+```
+
+```java
+    package com.mojontwins.modloader;
+
+    import org.lwjgl.opengl.GL11;
+
+    import net.minecraft.client.model.ModelBase;
+    import net.minecraft.client.renderer.entity.RenderLiving;
+    import net.minecraft.game.entity.EntityLiving;
+
+    public class RenderSlime extends RenderLiving {
+        private ModelBase modelSlime;
+
+        public RenderSlime(ModelBase var1, ModelBase var2, float var3) {
+            super(var1, var3);
+            this.modelSlime = var2;
+        }
+
+        protected boolean renderSlimePassModel(EntitySlime var1, int var2) {
+            if (var2 == 0) {
+                this.setRenderPassModel(this.modelSlime);
+                GL11.glEnable(GL11.GL_NORMALIZE);
+                GL11.glEnable(GL11.GL_BLEND);
+                GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+                return true;
+            } else {
+                if (var2 == 1) {
+                    GL11.glDisable(GL11.GL_BLEND);
+                    GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+                }
+
+                return false;
+            }
+        }
+        
+        protected void squishSlime(EntitySlime var1, float var2) {
+            float var3 = (var1.prevSquishFactor + (var1.squishFactor - var1.prevSquishFactor) * var2) / ((float)var1.size * 0.5F + 1.0F);
+            float var4 = 1.0F / (var3 + 1.0F);
+            float var5 = (float)var1.size;
+            GL11.glScalef(var4 * var5, 1.0F / var4 * var5, var4 * var5);
+        }
+        
+        protected void preRenderCallback(EntityLiving var1, float var2) {
+            this.squishSlime((EntitySlime)var1, var2);
+        }
+        
+        protected boolean shouldRenderPass(EntityLiving var1, int var2) {
+            return this.renderSlimePassModel((EntitySlime)var1, var2);
+        }    
+    }
+```
+
+```java
+    package com.mojontwins.modloader;
+
+    import org.lwjgl.opengl.GL11;
+
+    import net.minecraft.client.model.ModelBase;
+    import net.minecraft.client.renderer.entity.RenderLiving;
+    import net.minecraft.game.entity.EntityLiving;
+
+    public class RenderSlime extends RenderLiving {
+        private ModelBase modelSlime;
+
+        public RenderSlime(ModelBase var1, ModelBase var2, float var3) {
+            super(var1, var3);
+            this.modelSlime = var2;
+        }
+
+        protected boolean renderSlimePassModel(EntitySlime var1, int var2) {
+            if (var2 == 0) {
+                this.setRenderPassModel(this.modelSlime);
+                GL11.glEnable(GL11.GL_NORMALIZE);
+                GL11.glEnable(GL11.GL_BLEND);
+                GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+                return true;
+            } else {
+                if (var2 == 1) {
+                    GL11.glDisable(GL11.GL_BLEND);
+                    GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+                }
+
+                return false;
+            }
+        }
+        
+        protected void squishSlime(EntitySlime var1, float var2) {
+            float var3 = (var1.prevSquishFactor + (var1.squishFactor - var1.prevSquishFactor) * var2) / ((float)var1.size * 0.5F + 1.0F);
+            float var4 = 1.0F / (var3 + 1.0F);
+            float var5 = (float)var1.size;
+            GL11.glScalef(var4 * var5, 1.0F / var4 * var5, var4 * var5);
+        }
+        
+        protected void preRenderCallback(EntityLiving var1, float var2) {
+            this.squishSlime((EntitySlime)var1, var2);
+        }
+        
+        protected boolean shouldRenderPass(EntityLiving var1, int var2) {
+            return this.renderSlimePassModel((EntitySlime)var1, var2);
+        }    
+    }
+```
+
+### Auto select entities
+
+The `Spawner` selects one of the pre-existing mob and animals by throwing a random. I could add a couple of lists to let the developers add their entities to such list automaticly:
+
+`ModLoader.registerMonsterEntity (int entityID, Class monster)` and `ModLoader.registerAnimalEntity (int entityID, Class animal)` would let you add your own items to those lists. But first, I'll have to pre-fill the lists with "vanilla" entities and modify the Spawner to read from the list. Or HashMap.
+
+It's done. If you register your entities, those will be auto-selected at random by the engine, just as it selects the pre-existing entities. If you don't, you'll have to use the hooks to select & spawn them.
+
