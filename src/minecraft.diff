@@ -645,7 +645,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/EntityLiving.java
  }
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/Item.java MCP-LTS/src/minecraft/net/minecraft/game/item/Item.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/Item.java	2021-11-10 11:11:52.654952100 +0100
-+++ MCP-LTS/src/minecraft/net/minecraft/game/item/Item.java	2021-11-17 09:11:56.178860300 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/game/item/Item.java	2021-11-19 22:43:58.753260500 +0100
 @@ -1,9 +1,13 @@
  package net.minecraft.game.item;
  
@@ -682,7 +682,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/Item.java MCP-LTS/s
 +        float f9 = f3 * f5;
 +        float d3 = 5F;
 +        Vec3D vec3d1 = vec3d.addVector(f7 * d3, f8 * d3, f9 * d3);
-+        MovingObjectPosition movingobjectposition = par1World.rayTraceBlocks_flags(vec3d, vec3d1, par3, !par3);
++        MovingObjectPosition movingobjectposition = par1World.rayTraceBlocks_flags(vec3d, vec3d1, par3, false);
 +        return movingobjectposition;
 +    }    
 +    

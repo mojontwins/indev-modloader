@@ -13,9 +13,19 @@ This is the roadmap which will be constantly changing.
 * [x] Render blocks using custom renderers.
 * [x] Use your mod class to add food.
 * [x] Use your mod class to add tile entities.
-* [ ] Use your mod class to add entities.
+* [x] Use your mod class to add entities.
 * [ ] Use your mod class to add new kind of terrain generation.
 * [ ] Use your mod class to add structures.
+
+# TODOs
+
+So I don't forget:
+
+* [ ] I will later reimplement the Block ID system using some kind of registry that gets saved alognside worlds so IDs are reassigned when loading worlds.
+* [ ] Implement animations with local atlases via custom Texture FX
+* [ ] Custom fuel
+* [ ] Engine fix - Prevent eating food when right-clicking tile entities!
+
 
 # 1. Creating a basic ModBase class
 
@@ -612,6 +622,7 @@ And now add actual code to `mod_Example`. We are just going to add our new block
 And it works!
 
 TODO: I will later reimplement the Block ID system using some kind of registry that gets saved alognside worlds so IDs are reassigned when loading worlds.
+TODO: Implement animations with local atlases via custom Texture FX
 
 # Crafting & smelting
 
@@ -1881,8 +1892,6 @@ Create the items in `mod_Example`, assign graphics, add a smelting recipe, and g
 
 TODO - Prevent eating food when right-clicking tile entities!
 
-TODO - adding some visual indicator for status effects!
-
 ### More status effects stuff - attack strength
 
 There are two potions in r1.2.5, *weakness* and *damageBoost* which modify the strength when the player hits mobs. We can provide support for such kind of modifications with yet another hook, this time at `Minecraft.clickMouse` right after the attack strength has been calculated in `var19`. There's this:
@@ -2494,8 +2503,6 @@ And finally, in `mod_Example`,
     blockLilypadRenderID = ModLoader.getUniqueBlockModelID(this, false);    
 ```
 
-TODO - check if this is working!
-
 I'll leave this for now while I solve another issue: the item is not being displayed correctly. A plain lump of grass is being displayed in the player's hand and in the inventory, which means that I'm clearly missing something. I don't have a complete example of using custom block renderers in ModLoader (this is, including the item rendering code), nor I don't fully understand how this all works in Indev. So I'll have to do some research and get some understanding, and then see how can I work it all out.
 
 Right now I've done this:
@@ -2898,3 +2905,375 @@ First it gets the amount of animal entities in the world, and, as in with moster
 **HOOK** `var23 = ModLoader.spawnAnimal (var7, var22.worldObj);` and, finally
 
 The plan is adding these hooks and attempt to add some simple entities increasing in complexity and see if new hooks are needed.
+
+## Husks
+
+Husks are almost like plain zombies but spawn on sand and don't burn in the sun. They also use a custom texture.
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.entity.monster.EntityMob;
+    import net.minecraft.game.item.Item;
+    import net.minecraft.game.level.World;
+
+    public class EntityHusk extends EntityMob {
+        public EntityHusk(World var1) {
+            super(var1);
+            this.texture = "/mob/husk.png";
+            this.moveSpeed = 0.7F;
+            this.attackStrength = 7;
+        }
+
+        public final void onLivingUpdate() {
+            // Nothing special for the moment
+            super.onLivingUpdate();
+        }
+
+        protected final String getEntityString() {
+            return "Husk";
+        }
+
+        protected final int scoreValue() {
+            return Item.feather.shiftedIndex;
+        }
+    }
+```
+
+Nothing much happening here.
+
+## Rendering
+
+Where do we tell how this new mob should be rendered? Time for some code surfing and reverse engineering. It seems that the players, the skeleton and the zombie are all rendered using the same base class: `RenderLiving`. And it's all there, in `RenderManager`:
+
+```java
+    @SuppressWarnings("unchecked")
+    private RenderManager() {
+        this.entityRenderMap.put(EntitySpider.class, new RenderSpider());
+        this.entityRenderMap.put(EntityPig.class, new RenderLiving(new ModelPig(), 0.7F));
+        this.entityRenderMap.put(EntitySheep.class, new RenderSheep(new ModelSheep(), new ModelSheepFur(), 0.7F));
+        this.entityRenderMap.put(EntityCreeper.class, new RenderCreeper());
+        this.entityRenderMap.put(EntitySkeleton.class, new RenderLiving(new ModelSkeleton(), 0.5F));
+        this.entityRenderMap.put(EntityZombie.class, new RenderLiving(new ModelZombie(), 0.5F));
+        this.entityRenderMap.put(EntityPlayer.class, new RenderPlayer());
+        this.entityRenderMap.put(EntityGiantZombie.class, new RenderGiantZombie(new ModelZombie(), 0.5F, 6.0F));
+        this.entityRenderMap.put(EntityLiving.class, new RenderLiving(new ModelBiped(), 0.5F));
+        this.entityRenderMap.put(Entity.class, new RenderEntity());
+        this.entityRenderMap.put(EntityPainting.class, new RenderPainting());
+        this.entityRenderMap.put(EntityArrow.class, new RenderArrow());
+        this.entityRenderMap.put(EntityItem.class, new RenderItem());
+        this.entityRenderMap.put(EntityTNT.class, new RenderTNTPrimed());
+        Iterator var1 = this.entityRenderMap.values().iterator();
+
+        while(var1.hasNext()) {
+            ((Render)var1.next()).setRenderManager(this);
+        }
+    }
+```
+
+So it seems that, to add new renderers, we'll have to hijack the private attribute `entityRenderMap` from `ModLoader`. Time to use reflection again. `entityRenderMap`'s keys are entity classes, and the values instances of different kinds of renderers. To add our Husk we'll have to add a new entry:
+
+```java
+    this.entityRenderMap.put(EntityHusk.class, new RenderLiving(new ModelZombie (), 0.5F));
+``` 
+
+But from ModLoader:
+
+```java
+    /*
+     * Add a new entry to RenderManager.entityRenderMap
+     */
+    @SuppressWarnings("unchecked")
+    public void addEntityRenderer (Class<?> entityClass, Render render) throws Exception {
+        HashMap<Class<?>,Render> entityRenderMap = (HashMap<Class<?>,Render>) field_entityRenderMap.get(null);
+        entityRenderMap.put(entityClass, render);
+        field_entityRenderMap.set(null, entityRenderMap);
+    }
+```
+
+But this doesn't work. It throws a null pointer exception. And my kung fu is not that strong...
+
+Maybe attacking at `RenderManager.getEntityRenderObject` with a hook instead...
+
+```java
+    public final Render getEntityRenderObject(Entity var1) {
+        Class var2 = var1.getClass();
+        Render var3;
+        var3 = ModLoader.getEntityRender(var2);
+        if (var3 == null) var3 = (Render)this.entityRenderMap.get(var2);
+        
+        if ((var3) == null && var2 != Entity.class) {
+            var3 = (Render)this.entityRenderMap.get(var2.getSuperclass());
+            this.entityRenderMap.put(var2, var3);
+        }
+
+        return var3;
+    }
+```
+
+So 
+
+```java
+    public static void addEntityRenderer (Class<?> entityClass, Render render) throws Exception {
+        entityRenderMap.put(entityClass, render);
+    }
+```
+
+And we need this:
+
+```java
+    public static Render getEntityRender (Class<?> entityClass) {
+        return entityRenderMap.get(entityClass);
+    }
+```
+
+We also need a little sequencer (starts in 1000):
+
+```java
+    /*
+     * Simple sequencer
+     */
+    public static int getNewMobID() {
+        return currentMobID ++;
+    }
+```
+
+The last thing to to is creating an entity ID, adding the entity renderer, and then populating some hooks from our mod class.
+
+```java
+    // Add husks
+    
+    entityHuskMobID = ModLoader.getNewMobID();
+    ModLoader.addEntityRenderer(EntityHusk.class, new RenderLiving(new ModelZombie (), 0.5F));
+```
+
+And
+
+```java
+    public int spawnerSelectMonsterBasedOnPosition (int entityID, World world, int x, int y, int z) {
+        // If it's a Zombie and it's been placed on sand...
+        if (entityID == 3 && world.getBlockId(x, y, z) == Block.sand.blockID || world.getBlockId(x, y + 1, z) == Block.sand.blockID) {
+            // It's now a husk!
+            entityID = entityHuskMobID; 
+        }
+        return entityID;
+    }
+
+    public Object spawnMonster (int entityID, World world) {
+        if (entityID == entityHuskMobID) {
+            return new EntityHusk(world);
+        }
+        return null;
+    }
+```
+
+## Porting a slime
+
+I got hold of `a1.1.1`'s slimes, which are the earliest slimes I could get hold of in deobfuscated form (they were introduced in a1.0.11). I'll take a look at the methods they expect to override to see what I can do with them. I'll also rename some variables for the sake of clarity in this doc.
+
+### `EntitySlime`
+
+```java
+    public EntitySlime(World world) {
+        super(world);
+        this.texture = "/mob/slime.png";
+        this.size = 1 << this.rand.nextInt(3);                  // Local attribute (1, 2, 4)
+        this.yOffset = 0.0F;                                    // From Entity
+        this.slimeJumpDelay = this.rand.nextInt(20) + 10;       // Local attribute
+        this.setSlimeSize(this.size);                           // Local method
+    }
+```
+
+```java
+    // This method is local to this class
+    public void setSlimeSize(int var1) {
+        this.size = var1;                                       // Local attribute (1, 2, 4)
+        this.setSize(0.6F * (float)var1, 0.6F * (float)var1);   // From Entity
+        this.health = var1 * var1;                              // From EntityLiving (1, 4, 16)
+        this.setPosition(this.posX, this.posY, this.posZ);      // From Entity
+    }
+```
+
+```java
+    // Nothing to comment here
+    public void writeEntityToNBT(NBTTagCompound var1) {
+        super.writeEntityToNBT(var1);
+        var1.setInteger("Size", this.size - 1);
+    }
+
+    public void readEntityFromNBT(NBTTagCompound var1) {
+        super.readEntityFromNBT(var1);
+        this.size = var1.getInteger("Size") + 1;
+    }
+```
+
+This one, I'll have to stop by:
+
+```java
+    public void onUpdate() {
+        this.prevSquishFactor = this.squishFactor;
+        boolean var1 = this.onGround;
+        super.onUpdate();
+        if (this.onGround && !var1) {
+            for(int var2 = 0; var2 < this.size * 8; ++var2) {
+                float var3 = this.rand.nextFloat() * 3.1415927F * 2.0F;
+                float var4 = this.rand.nextFloat() * 0.5F + 0.5F;
+                float var5 = MathHelper.sin(var3) * (float)this.size * 0.5F * var4;
+                float var6 = MathHelper.cos(var3) * (float)this.size * 0.5F * var4;
+                // I'll have to implement this new particle
+                this.worldObj.spawnParticle("slime", this.posX + (double)var5, this.boundingBox.minY, this.posZ + (double)var6, 0.0D, 0.0D, 0.0D);
+            }
+
+            if (this.size > 2) {
+                // This method exists at World
+                this.worldObj.playSoundAtEntity(this, "mob.slime", this.getSoundVolume(), ((this.rand.nextFloat() - this.rand.nextFloat()) * 0.2F + 1.0F) / 0.8F);
+            }
+
+            this.squishFactor = -0.5F;
+        }
+
+        this.squishFactor *= 0.6F;
+    }
+```
+
+I have to tell if `onUpdate` is `onEntityUpdate` or `onLivingUpdate`. In a1.1.1, `EntityLiving.onUpdate` does call to `onLivingUpdate` and for what it does it seems to be `onEntityUpdate` So I'll have to rename this method. Same goes for this:
+
+```java
+   protected void updateEntityActionState() {
+        EntityPlayer var1 = this.worldObj.getClosestPlayerToEntity(this, 16.0D);
+        if (var1 != null) {
+            this.faceEntity(var1, 10.0F);
+        }
+
+        if (this.onGround && this.slimeJumpDelay-- <= 0) {
+            this.slimeJumpDelay = this.rand.nextInt(20) + 10;
+            if (var1 != null) {
+                this.slimeJumpDelay /= 3;
+            }
+
+            this.isJumping = true;
+            if (this.size > 1) {
+                this.worldObj.playSoundAtEntity(this, "mob.slime", this.getSoundVolume(), ((this.rand.nextFloat() - this.rand.nextFloat()) * 0.2F + 1.0F) * 0.8F);
+            }
+
+            this.squishFactor = 1.0F;
+            this.moveStrafing = 1.0F - this.rand.nextFloat() * 2.0F;
+            this.moveForward = (float)(1 * this.size);
+        } else {
+            this.isJumping = false;
+            if (this.onGround) {
+                this.moveStrafing = this.moveForward = 0.0F;
+            }
+        }
+    }
+```
+
+which seems to be `onLivingUpdate` - but there IS an `onLivingUpdate` as well. Maybe Indev's is split in two for Alpha? Will have to stop by a bit on this. Let's take a look at Indev's methods.
+
+**Indev's `EntityLiving.onLivingUpdate` does this**
+
+* ages the entity.
+* Checks if it's too far away from then player and sets it to die, if so.
+* Calls `updatePlayerActionState` which, IMHO, is a minaming.
+* Detects "in Lava" or "in Water" and stores the state in flags `var8` and `var6`.
+* Decreases all velocities a bit.
+* *Calls my hook `entitySpeedModifier (this)` & Applies the modifier to `moveForward` (`var3`) and `moveStrafing` (`var2`)*. 
+* Handles movement in water, in lava, or in air calling `moveFlying` and `moveEntity`
+* Does some stuff to limb swing.
+* checks collision with other entities and calls `applyEntityCollision` on the colliding enitity passing `this`.
+
+**Indev's `EntityLiving.updatePlayerActionState` does this**
+
+* Modifies `moveForward` and `moveStrafing` by random.
+* Jumps at random.
+* Turns around (Yaw), resets pitch.
+* Detects "in Lava" or "in Water" and jumps at random.
+
+**a1.1.1's `EntityLiving.onLivingUpdate` does this**
+
+* Does some stuff to position and rotation.
+* Calls `updateEntityActionState`.
+* Detects "inLava" or "inWater" and performs jumping to get out.
+* Decreases all velocities a bit.
+* Calls `moveEntityWithHeading`.
+* checks collision with other entities and calls `applyEntityCollision` on the colliding enitity passing `this`.
+
+
+**a1.1.1's `EntityLiving.updateEntityActionState` does this**
+
+* ages the entity.
+* Checks if it's too far away from then player and sets it to die, if so.
+* Selects a target to pursue (?)
+* Detects "in Lava" or "in Water" and jumps at random.
+
+SO. *together* both methods do basicly (!) the same thing, but the tasks seem to have been redistributed. So I'll have to rename `updateEntityActionState` to `updatePlayerActionState` and then add a custom `onLivingUpdate` which ports the tasks `a1.1.1`'s is doing to Indev (?).
+
+```java
+    public void setEntityDead() {
+        if (this.size > 1 && this.health == 0) {
+            for(int var1 = 0; var1 < 4; ++var1) {
+                float var2 = ((float)(var1 % 2) - 0.5F) * (float)this.size / 4.0F;
+                float var3 = ((float)(var1 / 2) - 0.5F) * (float)this.size / 4.0F;
+                EntitySlime var4 = new EntitySlime(this.worldObj);
+                var4.setSlimeSize(this.size / 2);
+                // Change this by setPositionAndRotation
+                var4.setLocationAndAngles(this.posX + (double)var2, this.posY + 0.5D, this.posZ + (double)var3, this.rand.nextFloat() * 360.0F, 0.0F);
+                this.worldObj.spawnEntityInWorld(var4);
+            }
+        }
+
+        super.setEntityDead();
+    }
+```
+
+```java
+    public void onCollideWithPlayer(EntityPlayer var1) {
+        if (this.size > 1 && this.canEntityBeSeen(var1) && (double)this.getDistanceToEntity(var1) < 0.6D * (double)this.size && var1.attackEntityFrom(this, this.size)) {
+            this.worldObj.playSoundAtEntity(this, "mob.slimeattack", 1.0F, (this.rand.nextFloat() - this.rand.nextFloat()) * 0.2F + 1.0F);
+        }
+
+    }
+```
+
+`canEntityBeSeen` doesn't seem to exist in Indev. This is the method (for `EntityLiving`). I've added it.
+
+```java
+    protected boolean canEntityBeSeen(Entity var1) {
+        return this.worldObj.rayTraceBlocks(Vec3D.createVector(this.posX, this.posY + (double)this.getEyeHeight(), this.posZ), Vec3D.createVector(var1.posX, var1.posY + (double)var1.getEyeHeight(), var1.posZ)) == null;
+    }
+```
+
+Finally:
+
+```java
+    protected String getHurtSound() {
+        return "mob.slime";
+    }
+
+    protected String getDeathSound() {
+        return "mob.slime";
+    }
+
+    protected int getDropItemId() {
+        return this.size == 1 ? Item.slimeBall.shiftedIndex : 0;
+    }
+
+    public boolean getCanSpawnHere() {
+        Chunk var1 = this.worldObj.getChunkFromBlockCoords(MathHelper.floor_double(this.posX), MathHelper.floor_double(this.posY));
+        return (this.size == 1 || this.worldObj.difficultySetting > 0) && this.rand.nextInt(10) == 0 && var1.getRandomWithSeed(987234911L).nextInt(10) == 0 && this.posY < 16.0D;
+    }
+
+    protected float getSoundVolume() {
+        return 0.6F;
+    }
+```
+
+`getCanSpawnHere` has to be redefined, of course. No chunks in Indev :-)
+
+This leads me to another question: Sounds. Everything in indev sounds "UUGH", there's definitely support for it, it's just undefined for Zombies (for example). Where are they stored? Do I have to use a sound proxy? I'd rather have a big .jar, to be honest.
+
+Oh my gosh - this has a resources renderer. I didn't know this was the case for Indev as well. Well, could I use my server? 
+
+Anyways, let's add to the mix the new particle FX. How can I add particle FX from ModLoader? Let's leave this for now. I'd have to have a way to override the textures in this module and I'm not quite sure how to do it. Is that even possible in Risugami's ModLoader?
+
+OK - let's do this. No textures for the moment. Port the Entity and the Render and see if it, at least, compiles.

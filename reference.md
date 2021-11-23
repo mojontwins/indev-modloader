@@ -1370,3 +1370,143 @@ For example:
         return 1.0F;
     }
 ```
+
+# Full example: Clay stuff
+
+We'll try and add a new mod which adds clay, means of getting clay, buckets you can fill with water and drop elsewhere, a new tile entity to make clay with sand/dirt, water, and time, etc.
+
+We need a custom class `BlockClay` as when you break clay it drops 4 clay balls:
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.util.Random;
+
+    import net.minecraft.game.block.Material;
+
+    public class BlockClay extends ModBlock {
+
+        public BlockClay(int id, Material material) {
+            super(id, material);
+        }
+
+        public int quantityDropped(Random var1) {
+            return 4;
+        }
+
+        public int idDropped(int var1, Random var2) {
+            return mod_ClayStuff.itemClayBall.shiftedIndex;
+        }   
+    }
+```
+
+And our first, bare-bones `mod_ClayStuff` mod:
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.block.Material;
+    import net.minecraft.game.item.ItemStack;
+
+    public class mod_ClayStuff extends BaseMod {
+
+        public static ModBlock blockClay;
+        public static ModItem itemClayBall;
+        public static ModItem itemBucketEmpty;
+        public static ModItem itemBucketWater;
+        
+        @Override
+        public void load() throws Exception {
+            blockClay = new BlockClay(ModLoader.getBlockId(), Material.ground).setBlockHardness(0.5F).setName("block.clay");
+            blockClay.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_clay.png");
+            ModLoader.registerBlock(blockClay);
+            
+            itemClayBall = new ModItem(ModLoader.getItemId()).setMaxStackSize(64).setName("item.clay_ball");
+            itemClayBall.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_clay_ball.png"));
+            
+            ModLoader.addRecipe(new ItemStack(blockClay), new Object [] {
+                "XX", "XX",
+                'X', itemClayBall
+            });
+        }
+
+    }
+```
+
+Next thing to add is the empty bucket. The empty bucket can be used on water, will extract the water block, and become a water bucket, which we'll handle later. Of course, as items and blocks can't hold a state, we'll use the same class which can be instanced in different ways to represent the different states of the "same" water bucket.
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.client.physics.MovingObjectPosition;
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.block.Material;
+    import net.minecraft.game.entity.player.EntityPlayer;
+    import net.minecraft.game.item.ItemStack;
+    import net.minecraft.game.level.World;
+
+    public class ItemBucket extends ModItem {
+        // What's inside the bucket?
+        public int contents = 0;    
+        
+        public ItemBucket(int var1, int contents) {
+            super(var1);
+            this.contents = contents;
+        }
+
+        public ItemStack onItemRightClick(ItemStack itemStack, World world, EntityPlayer entityPlayer) {
+            // First we detect if we hit water
+            MovingObjectPosition movingobjectposition = getMovingObjectPositionFromPlayer(world, entityPlayer, true);
+
+            if (movingobjectposition == null) {
+                return itemStack;
+            }
+
+            if (movingobjectposition.typeOfHit == 0) {
+                int x = movingobjectposition.blockX;
+                int y = movingobjectposition.blockY;
+                int z = movingobjectposition.blockZ;
+                int sideHit = movingobjectposition.sideHit;
+
+                if (world.getBlockMaterial(x, y, z) == Material.water && contents == 0) {
+                    // This is an empty bucket hitting water
+                    
+                    // Substitute the hit block with air
+                    world.setBlockWithNotify(x, y, z, 0);
+                    
+                    // Replace this item with a water bucket
+                    return new ItemStack (mod_ClayStuff.itemBucketWater);
+                } else if (Block.blocksList[world.getBlockId(x, y, z)].isOpaqueCube() && contents == Block.waterStill.blockID) {
+                    // This bucket is full of water
+
+                    // Abuse ItemBlock.onItemUse, which puts a block in the world
+                    ItemStack itemStackWaterMoving = new ItemStack (Block.waterMoving);
+                    (itemStackWaterMoving).getItem().onItemUse (itemStackWaterMoving, world, x, y, z, sideHit);
+                    
+                    // Replace this item with an empty bucket
+                    return new ItemStack (mod_ClayStuff.itemBucketEmpty);
+                }
+            }
+
+            return itemStack;
+        }   
+    }
+```
+
+If you create an object of class `ItemBucket` it will represent an empty bucket or a bucket with water based on the second parameter in the constructor, which will get 0 for "empty" and `Block.waterStill.blockId` for "filled with water". This value is stored in `contents`. The bucket is used when the player right-clicks somewhere in the world with the bucket equiped. `onItemRightClick` is called then.
+
+First of all we get the coordinates and the side of the block in the world being hit in a `MovingObjectPosition` object. If it is null, we are not hitting anything (the block under the mouse cursor is far away), so return the `itemStack` untouched. If not, we check the type of hit, which is 0 for blocks and 1 for entities. 
+
+If the block hit's material is water, and *this* is an empty bucket (`contents` is 0), then we *fill the bucket*: remove the block hit by the bucket, and return a new ItemStack containing the bucket with water.
+
+If the block hit is opaque, and *this* is a bucket with water (`contents` is `Block.waterStill.blockID`), then we have to put water in the world but beware: if we used `world.setBlockWithNotify` with `(x, y, z)` as in the previous branch we would be substituting the block hit with the water block, and this is not what we want. We could use `sideHit` to adjust the `(x, y, z)` coordinates so the new block stuck to the side of the block being hit, but such calculation is already present in the Minecraft code: when you right click in the world with a block equiped, `ItemBlock.onItemUse` is called and puts the block in the world, if possible. So we make a new itemstack with `Block.waterMoving`, and then call `onItemUse` on `getItem()`. Finally, we return a new ItemStack containing the empty bucket.
+
+Now what's left is creating the objects in the mod class:
+
+```java 
+    itemBucketEmpty = new ItemBucket(ModLoader.getItemId(), 0).setMaxStackSize(1).setName("item.bucket_empty");
+    itemBucketEmpty.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_bucket_empty.png"));
+    
+    itemBucketWater = new ItemBucket(ModLoader.getItemId(), Block.waterStill.blockID).setMaxStackSize(1).setName("item.bucket_water");
+    itemBucketWater.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_bucket_water.png"));
+```

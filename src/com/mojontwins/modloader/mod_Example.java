@@ -217,7 +217,7 @@ public class mod_Example extends BaseMod {
     }
 	
 	public void hookGenerateStructures (LevelGenerator levelGenerator, World world) {
-		world.setBlockWithNotify(world.xSpawn, world.ySpawn + 1, world.zSpawn - 3, blockStoneBricks.blockID);
+		// world.setBlockWithNotify(world.xSpawn, world.ySpawn + 1, world.zSpawn - 3, blockStoneBricks.blockID);
 	}
 		
     public void hookPlanting (LevelGenerator levelGenerator, World world, Random rand) {
@@ -238,7 +238,7 @@ public class mod_Example extends BaseMod {
 		minecraft.thePlayer.inventory.setInventorySlotContents(0, new ItemStack(Block.stoneOvenIdle, 1));
 		minecraft.thePlayer.inventory.setInventorySlotContents(1, new ItemStack(Block.workbench, 1));
 		minecraft.thePlayer.inventory.setInventorySlotContents(2, new ItemStack(Item.coal, 64));
-		minecraft.thePlayer.inventory.setInventorySlotContents(3, new ItemStack(itemFoodRawChicken, 10));
+		minecraft.thePlayer.inventory.setInventorySlotContents(8, new ItemStack(itemFoodRawChicken, 10));
 		minecraft.thePlayer.inventory.setInventorySlotContents(3, new ItemStack(blockSillyBoxEmpty, 1));
 
 		minecraft.thePlayer.inventory.setInventorySlotContents(9, new ItemStack(Block.cobblestone, 64));

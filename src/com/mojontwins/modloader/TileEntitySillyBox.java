@@ -64,7 +64,7 @@ public class TileEntitySillyBox extends TileEntity {
     }
     
     public void onTileEntityRemoved (World world, int x, int y, int z) {
-    	if (world.getBlockId(x, y, z) == 0) {
+    	if (world.getBlockId(x, y, z) == 0 && this.contents != null) {
 			float px = world.random.nextFloat() * 0.7F + 0.15F;
 	        float py = 1.0F;
 	        float pz = world.random.nextFloat() * 0.7F + 0.15F;
