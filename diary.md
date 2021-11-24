@@ -3538,3 +3538,41 @@ The `Spawner` selects one of the pre-existing mob and animals by throwing a rand
 
 It's done. If you register your entities, those will be auto-selected at random by the engine, just as it selects the pre-existing entities. If you don't, you'll have to use the hooks to select & spawn them.
 
+### Trying to understand the world generator
+
+`LevelGenerator` is pretty confusing, more so with obfuscated variables. I dunno if current RetroMCP has a better mapping - nah. I'm stuck with the varXX names. Will try to figure out how every stage of the process starts and how could I modify it via hooks or total substitution or whatever.
+
+First of all, there's a set of attributes which define the characteristics of the generated level, which are set directly or indirectly from the menu selections when generating a new level. Those are:
+
+* `width`, `height`, `length` - Level dimensions (in z, y, z axes, respectively).
+* `waterLevel` - Sea level.
+* `groundLevel` - Gotta figure this out.
+* `islandGen` - Generate "island" level, surrounded by an endless ocean.
+* `floatingGen` - Generate a "floating islands level". 
+* `flatGen` - Generate a flat level.
+* When all three are set to false, an "inland" level is created, surrounded by an endless plain.
+* `levelType` contains the level "theme", which is: 0 - Normal, 1 - Hell, 2 - Paradise, 3 - Woods.
+
+`levelType` seems to affect these stages:
+
+* *Soiling* - The x-z plane is iterated. For each (x, z), a noise level is generated using `NoiseGenerateOctaves.generateNoise`. Then it is compared with a different value depending on `levelType` to set a boolean `var59`: 
+    * For `levelType` 0 (normal), `var59` is true if the value is > -8.0D if `islandGen` or 8.0D otherwise.
+    * For `levelType` 1 (hell) and 3 (paradise), true if value is > -8.0D.
+    * For `levelType` 2 (paradise), `var59` true if that value is > -32.0D.
+    * If the flag is set and the (somehow) calculated level for that coordinate is below a previously adjusted sea level, sand or grass (for Hell) is generated.
+
+* *Watering* - 
+    * If not `floatingGen`, under `waterLevel`
+        * If `levelType` 1 select "lava"
+        * else select "water"
+    * Fill empty spaces with selected block.
+
+* Decorating, selects `skyColor`, `fogColor`, `cloudColor`, `defaultFluid`, maybe `cloudHeight` or even adjusts `waterLevel` (set to -16 for `floatingGen`).
+
+* *Planting* 
+    * For al `levelType`s but 1, grows grass on dirt.
+    * Grows extra trees if `levelType` is 3 (woods).
+    * Uses a multiplicator of 100 to grow flowers, 1000 for `levelType` 2 (paradise).
+
+Now on to the weird gibberish. Maybe if I start replacing `varXX`s with actual names? At least out of the code base so it doesn't get in the diff... Not that it really matters, tho'. 
+
