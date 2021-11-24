@@ -1,6 +1,6 @@
 # General stuff
 
-To create a mod using ModLoader, you have to create a new class called `mod_YourNameHere` which extends `BaseMod`, then place all your initialization stuff in a `load` method.
+To create a mod using ModLoader, you have to create a new class called `mod_YourNameHere` in the package `com.mojontwins.modloader` which extends `BaseMod`, then place all your initialization stuff in a `load` method. To load resources from within the .jar or .zip files, take in account that the base directory if that of `ModLoader`, that is, `com/mojontwins/modloader` so you may use paths relative to that, such as those in the examples contained in this document.
 
 ```java
     package com.mojontwins.modloader;
