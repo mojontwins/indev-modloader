@@ -26,6 +26,7 @@ import java.util.zip.ZipInputStream;
 import javax.imageio.ImageIO;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiNewLevel;
 import net.minecraft.client.renderer.RenderBlocks;
 import net.minecraft.client.renderer.RenderEngine;
 import net.minecraft.client.renderer.entity.Render;
@@ -112,6 +113,12 @@ public class ModLoader {
 	
     // A sequencer for mob IDs used in Spawner
     private static int currentMobID = 1000;
+    
+    // A sequencer for level themes
+    private static int currentThemeID = 4;
+       
+    // A HashMap to store level themes
+    private static HashMap<Integer,ModLevelTheme> levelThemes = new HashMap<Integer,ModLevelTheme> ();
     
 	public ModLoader () {
 		
@@ -751,5 +758,152 @@ public class ModLoader {
     	Spawner.availableAnimalEntities.put(entityID, entityClass);
     }
     
+    // World Theme support
     
+    /*
+     * Register a new theme
+     */
+    public static int registerWorldTheme (ModLevelTheme levelTheme) {
+    	int themeID = currentThemeID ++;
+    	levelThemes.put (themeID, levelTheme);
+    	
+    	return themeID;
+    }
+    
+    /*
+     * Add themes to the menu in GuiNewLevel
+     */
+    public static void addNewLevelMenuEntries (GuiNewLevel guiNewLevel) {
+        Field fieldWorldTheme;
+		try {
+			fieldWorldTheme = guiNewLevel.getClass().getDeclaredField("worldTheme");		
+			fieldWorldTheme.setAccessible(true);
+        	String [] worldTheme = (String []) fieldWorldTheme.get (guiNewLevel);
+
+	        // Modify or replace worldTheme. Cannot add to a static array, so:
+	        List<String> list = Arrays.asList(worldTheme);
+	        ArrayList<String> arraylist = new ArrayList<String>();
+	        arraylist.addAll(list);
+	
+	        // Here: code to add all world themes defined in ModLoader.
+	        Iterator<Integer> it = levelThemes.keySet().iterator();
+	        while (it.hasNext()) {
+	    		Integer themeID = it.next();
+	    		ModLevelTheme levelTheme = levelThemes.get(themeID);
+	    		arraylist.add(levelTheme.themeName);
+	        }
+	        
+	        // And substitute the original static array for the modified one    
+	        fieldWorldTheme.set (guiNewLevel, ((Object)(arraylist.toArray(new String[0]))));
+		} catch (Exception e) {
+			e.printStackTrace();
+		} 
+    }
+    
+    // Hooks for `LevelGenerator` and level themes
+    
+    // Adjust water level
+    public static int waterLevelAdjust (LevelGenerator levelGanerator) {
+    	ModLevelTheme levelTheme = levelThemes.get(levelGanerator.levelType);
+    	if (levelTheme != null) {
+    		return levelTheme.waterLevelAdjust;
+    	}
+    	return 0;
+    }
+    
+    // Soiling
+    
+    /*
+     * This hook is called to override the blockID calculation for each column during the "soiling" stage.
+     * *Must* return -1 on failure so the engine does its normal calculations. Note that the implementation
+     * *HAS* to handle `floatinGen`.
+     */
+    public static int getSoilingBlockID (LevelGenerator levelGenerator, int y, int floorLevel, int fillLevel, int islandBottomLevel) {
+    	ModLevelTheme levelTheme = levelThemes.get(levelGenerator.levelType);
+    	if (levelTheme != null) {
+    		return levelTheme.getSoilingBlockID(levelGenerator, y, floorLevel, fillLevel, islandBottomLevel);
+    	}
+        return -1;
+    }
+    
+    // Growing
+    
+    /*
+     * Adjust the beachLevel. Leave it untouched for default
+     */
+    public static int adjustBeachLevel (LevelGenerator levelGenerator, int beachLevel) {
+    	ModLevelTheme levelTheme = levelThemes.get(levelGenerator.levelType);
+    	if (levelTheme != null) {
+    		beachLevel = levelTheme.adjustBeachLevel (levelGenerator, beachLevel);
+    	}
+    	return beachLevel;
+    }
+    
+    /*
+     * Decide if we should add sand return shouldGrow unchanged for default
+     */
+    public static boolean shouldGrow (LevelGenerator levelGenerator, double noiseValue, boolean shouldGrow) {
+    	ModLevelTheme levelTheme = levelThemes.get(levelGenerator.levelType);
+    	if (levelTheme != null) {
+    		shouldGrow = levelTheme.shouldGrow(levelGenerator, noiseValue, shouldGrow);
+    	}
+    	return shouldGrow;
+    }
+    
+	/*
+	 * Called each iteration to know which block to add while growing.
+	 * Return -1 for the default generation which is sand (grass for hell theme).
+	 */
+	public static int getGrowingBlockID (LevelGenerator levelGenerator) {
+		ModLevelTheme levelTheme = levelThemes.get(levelGenerator.levelType);
+    	if (levelTheme != null) {
+    		return levelTheme.getGrowingBlockID(levelGenerator);
+    	}
+		return -1;
+	}
+	
+	// Watering
+	
+	/*
+	 * Use to select a custom BlockID for "water" (not much choice)
+	 * Return -1 for the default generation which is Block.waterStill.BlockID;
+	 */
+	public static int getWateringBlockID (LevelGenerator levelGenerator) {
+		ModLevelTheme levelTheme = levelThemes.get(levelGenerator.levelType);
+    	if (levelTheme != null) {
+    		return levelTheme.getWateringBlockID(levelGenerator);
+    	}
+		return -1;
+	}
+	
+	// Visuals
+	
+	/*
+	 * Use this to modify any of these world values:
+	 * `world.skyColor` - 0x99CCFF by default
+	 * `world.fogColor` - 0xFFFFFF by default
+	 * `world.cloudColor` - 0xFFFFFF by default
+	 * `skylightSubtracted` Seems to be 15 by default. Skeletons & zombies only burn at day if it is > 7.
+	 * `skyBrightness` 15 by default.
+	 * `defaultFluid` - water or lava (for hell).
+	 */
+	public static void setVisuals (LevelGenerator levelGenerator, World world) {
+		ModLevelTheme levelTheme = levelThemes.get(levelGenerator.levelType);
+    	if (levelTheme != null) {
+    		levelTheme.setVisuals(levelGenerator, world);
+    	}
+	}
+	
+	// Planting
+	/*
+	 * Do your planting and return true, 
+	 * or return false to let the engine do its thing.
+	 */
+	public static boolean overridePlanting (LevelGenerator levelGenerator, World world) {
+		ModLevelTheme levelTheme = levelThemes.get(levelGenerator.levelType);
+    	if (levelTheme != null) {
+    		return levelTheme.overridePlanting(levelGenerator, world);
+    	}
+    	return false;
+    }
 }

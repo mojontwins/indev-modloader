@@ -25,7 +25,7 @@ So I don't forget:
 * [ ] Implement animations with local atlases via custom Texture FX
 * [ ] Custom fuel
 * [ ] Engine fix - Prevent eating food when right-clicking tile entities!
-
+* [ ] Engine fix - Correct bug that makes the indev house not spawn.
 
 # 1. Creating a basic ModBase class
 
@@ -3538,7 +3538,7 @@ The `Spawner` selects one of the pre-existing mob and animals by throwing a rand
 
 It's done. If you register your entities, those will be auto-selected at random by the engine, just as it selects the pre-existing entities. If you don't, you'll have to use the hooks to select & spawn them.
 
-### Trying to understand the world generator
+# Trying to understand the world generator
 
 `LevelGenerator` is pretty confusing, more so with obfuscated variables. I dunno if current RetroMCP has a better mapping - nah. I'm stuck with the varXX names. Will try to figure out how every stage of the process starts and how could I modify it via hooks or total substitution or whatever.
 
@@ -3575,4 +3575,608 @@ First of all, there's a set of attributes which define the characteristics of th
     * Uses a multiplicator of 100 to grow flowers, 1000 for `levelType` 2 (paradise).
 
 Now on to the weird gibberish. Maybe if I start replacing `varXX`s with actual names? At least out of the code base so it doesn't get in the diff... Not that it really matters, tho'. 
+
+## Understanding the generator
+
+Let's break it down piece by piece. First thing we get is this:
+
+```java
+    int genPasses = 1;
+    if (this.floatingGen) {
+        genPasses = (var4 - 64) / 48 + 1;
+    }
+
+    this.phases = 13 + genPasses * 4;
+```
+
+I guess this has to do with the progress var. `var4` is the level heigth, which can be 64 for normal levels or 256 for "deep" levels. So `genPasses` will be 1 for all gens but for `floatingGen` which will make it `(var4 - 64) / 48 + 1;` which results on 1 for normal levels or 192 / 48 + 1 = 4 + 1 = 5 for "deep" levels. So "deep" floating islands have 5 generation "iterations". 
+
+```java
+    World world;
+    (world = new World()).waterLevel = this.waterLevel;
+    world.groundLevel = this.groundLevel;
+    this.width = var2;
+    this.depth = var3;
+    this.height = var4;
+    this.blocksByteArray = new byte[var2 * var3 * var4];
+``` 
+
+Some setup. Set `width` / `depth` / `height` with the parameters, create a blan `blocksByteArray` to contain the level, and create a new world. Note that, on the first call to `LevelGenerator.generate`, `waterLevel` and `groundLevel` are not explicitly set so they equal 0.
+
+```java
+    int genPass;
+    LevelGenerator levelGenerator;
+
+    for(genPass = 0; genPass < genPasses; ++genPass) {
+        this.waterLevel = height - 32 - genPass * 48;
+        this.groundLevel = this.waterLevel - 2;
+            
+        int[] heightMap;            
+        int[] tempTempHeightMap;
+```
+
+The generator will now iterate 1 or 5 times (5 for "deep" floating islands). On each iteration, stages "Raising" to "Carving" will be executed. Prior to that, `waterLevel` is calculated as `height - 32 - genPass * 48`, and `groundLevel` two blocks below that, which results on: 
+
+* Pass 0: `waterLevel` = **32** /  **192** ("deep"). `groundLevel` = **30** / **190**.
+* Pass 1: `waterLevel` = 256 - 32 - 48 = **176**. `groundLevel` = **174**.
+* Pass 2: `waterLevel` = 256 - 32 - 96 = **128**. `groundLevel` = **126**.
+* Pass 3: `waterLevel` = 256 - 32 - 144 = **80**. `groundLevel` = **78**.
+* Pass 4: `waterLevel` = 256 - 32 - 192 = **32**. `groundLevel` = **32**.
+
+Note how `waterLevel` & `groundLevel` for deep floating islands is the same as the rest of the generators for the last pass (`waterlevel` = 32, `groundLevel` = 30).
+
+### Raising / Eroding
+
+The next part, "Raising / Eroding", iterates the x-z plane to create a basic heigth map using several noise generator. First it 'erodes' then it 'raises', but the way code is organized is quite cumbersome and I don't know if this is just the decompiler doing funny things with old bytecode. Most likely, as there is a "Raising" loop and a nested "Eroding" loop which will run after the variable used to iterate in the outer loop is out of bounds and then break out of both loops. 
+
+Anyways. 
+
+* The "Raising" part iterates on the x axis, from 0 to `this.width` - 1.
+    * For each loop, it iterates on the z axis, from 0 to `this.depth` - 1.
+        * It generates two noise values for the current (x-z) plane
+        * Does some weird calculations with them
+        * Calculates the max of them, divides by two, stores the result in `floorLevel`.
+            * If `floatingGen`, more weird calculations are performed, and if the level is negative it's trimmed to 0
+            * if not, it only flattens it a bit for negatives, multiplying by 0.8 the values.
+
+* The "Eroding" part generates two new noise generators ngd1, ngd2, then iterates on the x axis, from 0 to `this.width` - 1.
+    * For each loop, it iterates on the z axis, from 0 to `this.depth` - 1.
+        * Generates a noise value based on ngd1.
+        * Generates a variation value of 0 or 1 depending on a noise value from ngd2.
+        * If the noise value from ngd1 > 2.0, it applies the variation to the current height: height = (height - variation) / 2 * 2 + variation
+
+This calculation: `height = (height - variation) / 2 * 2 + variation` does something only if variation = 1, in which case:
+
+    * if height is ODD, (height - 1 / 2 * 2) = height - 1. add 1 and height is not changed.
+    * if height is EVEN, (height - 1 / 2 * 2) = height - 2. add 1 and height is 1 less.
+
+So much effort for some little effect?
+
+### Soiling
+
+Now the height map is generated, the next pass will "fill" the blockArray with a basic set of blocks depending on the height map. It iterates the x-z plane, creates some weird numbers and a couple of noise values, and then:
+    * Sets `floorLevel` to the value stored in `tempHeightMap` plus `levelGenerator.waterLevel`: this sets the vertical "center" of the height map at water level.
+    * Sets `fillLevel` a bit above or below `floorLevel`, depending on the first noise value (which may be negative).
+    * Adjusts the `heightMap` to the max between `floorLevel` and `fillLevel`. Now the `heightMap` is centered around water level and not 0.
+    * If `heightMap` value for this cell is over the max map height - 2, it's trimmed to this value.
+    * If `heightMap` value for this cell is 0 or negative, it's trimmed to 1.
+    * A weird operation is generated to calculate a `islandBottomLevel` of the floating islands for `floatingGen`. If the calculated value is above the "imaginary" water level (as there is no water in floating islands) the value is set to `levelGenerator.height` which will later fill all of this column with air.
+    * The curent column (x, z) is now iterated from 0 to `this.height`.
+        * Default blockID = 0 (air)
+        * If we are below `floorLevel`, blockID is DIRT.
+        * If we are below `fillLevel`, blockID is STONE. 
+        * If `floatingGen` and we are below `islandBottomLevel`, it is set to 0 (AIR).
+        * If the block in the blocks array WAS 0, put the new blockID value. <- this makes generating several levels of islands possible.
+
+### Growing
+
+This section adds sand and gravel to the world. It sets a `beachLevel` (my invention, of course :D) just 1 block below `waterLevel`, or 2 blocks above if `levelType` is 2 (paradise). Then it iterates the x-z plane. Then calculates a boolean `var59` with a different condition depending on the niose generator `noiseGenO1` and `levelType`:
+
+* For level types 1 or 3 (hell or woods), or the `islandGen` if level type is not 2 (paradise), if noise is > -8.
+* For level type 2 (paradise), if noise > -32 (bigger chance).
+* For level type 0 (normal), if not `islandGen`, if noise is > 8 (smaller chance).
+
+It then gets the floor level for (x, z), and gets the `blockID` which is 1 over the floor level at (x, z). 
+
+* If it is water or air and the floor level is below `beachLevel` and some generated noise in `noiseGenO2` for (x, z) is > 12.0, it places gravel.
+* If it is air, then, if the floor level is below `beachLevel` and `var59` it places sand (dirt in `levelType` 1 - "hell").
+
+### Carving
+
+This seems to dig rock to make caves, but the code is too confusing. It seems to have it iterating for a number of times digging tunnels in random, varying angles. 
+
+Note that the genPasses loop ends here. Once we pass this stage, all levels (for `floatingGen` "deep" levels) have been put to the block array.
+
+### Ore generation
+
+Generates ores in different quantities and from certain heights. Parameters to `populateOre` seem to be Block ID, density, chance, max. height.
+
+```java
+    int coalBlocks = this.populateOre(Block.oreCoal.blockID, 1000, 10, (height << 2) / 5);
+    int irenBlocks = this.populateOre(Block.oreIron.blockID, 800, 8, height * 3 / 5);
+    int goldBlocks = this.populateOre(Block.oreGold.blockID, 500, 6, (height << 1) / 5);
+    int diamondBlocks = this.populateOre(Block.oreDiamond.blockID, 800, 2, height / 5);
+    System.out.println("Coal: " + coalBlocks + ", Iron: " + irenBlocks + ", Gold: " + goldBlocks + ", Diamond: " + diamondBlocks);
+```
+
+### Melting
+
+Lava is added.
+
+Then cloud height is calculated, and groundLevel and waterLevel are adjusted as follows:
+
+* Generally, `cloudHeight` is `height` + 2.
+* if `floatingGen`, `groundLevel` is set to -128, `waterLevel` to -127, and `cloudHeight` to -16, all bellow the bottom of the map.
+* if `islandGen`, `groundLevel` is set to `waterLevel` - 9, that is, 32 - 9 = 23.
+* if `flatGen` or inland, `groundLevel` is `waterLevel` + 1, that is, 33, then `waterLevel` is adjusted to `groundLevel` - 16, becoming 17.
+
+### Watering
+
+Water (or lava, for `levelType` 2 "hell") is then added below `waterLevel` using floor fills.
+
+### Level visuals
+
+Based upon `levelType` (normal, hell, paradise or woods) several values are set:
+
+* `world.skyColor` - 0x99CCFF by default
+* `world.fogColor` - 0xFFFFFF by default
+* `world.cloudColor` - 0xFFFFFF by default
+* `skylightSubtracted` Seems to be 15 by default. Skeletons & zombies only burn at day if it is > 7.
+* `skyBrightness` 15 by default.
+* `defaultFluid` - water or lava (for hell).
+
+### Assembling
+
+This is called:
+
+```java
+    world.generate(width, height, depth, this.blocksByteArray, (byte[])null);
+```
+
+This method is also called when loading a level from disk. The two last parameters are passed `var3.getByteArray("Blocks")` and `var3.getByteArray("Data")`. Checking the `.mclevel` level format for Indev, we learn that:
+
+* `Blocks` is a width * length * height bytes array of block IDs. (8 bits)
+* `Data` is a width * length * height bytes array of block data (4 bit) and light value (next 4 bit).
+
+This `generate` copies `width`, `height` and `depth` to the world, and copies the reference to `blocksByteArray` to its own `block` (note: it doesn't make a copy). Then there's this loop which iterates the whole byte array that I have to try and understand...
+
+It seems to add lava, water, grass, dirt, bedrock or the default fluid to the limits of the block array, or something. I'm too dizzy now to understand this bit. The inner loop, which iterates on `y`, starts in 0, and if x / z are not in the borders it jumps to height - 2 directly. It's not that important, I don't think I need to touch this.
+
+It then calculates an actual heightmap while it calculates the lights for the level, does some stuff, and returns.
+
+From now on, all generation is performed on the world (not that it matters as the block array in the world is a reference to the block array in the generator).
+
+## First customization idea: Themes
+
+On a first iteration, having the ability to easily adding new world themes would be nice. Adding a new `LevelTheme` class with attributes and methods which would maintain a `HashMap` of themes one could easily access when `levelType` > 3. Adding new themes from ModLoader would be as easy as registering new `LevelTheme` instances in the `HashMap`, with the Key = the `levelType`. This should also add entries to the `GuiNewLevel` array of themes `worldTheme`, which happens to be private. Whether I make it accessible or I directly edit the base class to make it public, I have to get new values inside this array.
+
+The main problem is that the array is not static and an instance of `GuiNewLevel` is created in three different places: in `GuiGameOver`, `GuiIngameMenu` and `GuiMainMenu`. To make this feasible I'm thinking on creating the object in `Minecraft` early on and then have a way to access it from those places. The other solution would be adding a hook after the object is created to add the new menu entries EVERY TIME which would be a bit of a chore.
+
+That, or make the array static. But - I can't really access it if the object hasn't been instantiated or accessed once before the BaseMod "init" code is executed.
+
+But, wouldn't instantiating a dummy object of this class assure that the static array is allocated and populated? Isn't that a bit "dirty"?
+
+The other solution, as mentioned, would be - each of them three times:
+
+```java
+    GuiNewLevel guiNewLevel = new GuiNewLevel (this);
+    ModLoader.addNewLevelMenuEntries (guiNewLevel);
+    this.mc.displayGuiScreen (guiNewLevel);
+```
+
+This has to be added to three different spots buf I find this to be way more clean. In `addNewLevelMenuEntries` I would have to use reflection this way:
+
+```java
+    Field fieldWorldTheme = guiNewLevel.getClass().getDeclaredField(worldTheme);
+    fieldWorldTheme.setAccessible(true);
+    String [] worldTheme = (String []) fieldWorldTheme.get (guiNewLevel);
+
+    // Modify or replace worldTheme. Cannot add to a static array, so:
+    List<String> list = Arrays.asList(worldTheme);
+    ArrayList<String> arraylist = new ArrayList<String>();
+    arraylist.addAll(list);
+
+    // Here: code to add all world themes defined in ModLoader.
+
+    // And substitute the original static array for the modified one    
+    fieldWorldTheme.set (guiNewLevel, ((Object)(arraylist.toArray(new String[0]))));
+```
+
+This should work. Now let's get on to the `ModLevelTheme` class, which should provide:
+
+* A way to raise/lower the waterLevel for each pass
+
+```java
+    public int waterLevelAdjust = 0;                // in blocks; no change
+```
+
+* A way to select the blockID being used in the "Soiling" stage. I can add a hook before the values is decided. Return -1 for normal action:
+
+```java
+    int soilingBlockID (LevelGenerator levelGenerator, int y, int floorLevel, int fillLevel, int islandBottomLevel) {
+        return -1;
+    }
+```
+
+* A way to set `var59` and `newBlockID` for the "Growing" stage. I guess, one method and a public attribute:
+
+```java
+    public int growBlockID = Block.dirt.blockID;    // or whatever
+
+    boolean shouldGrow (LevelGenerator levelGeneartor, double noiseValue) {
+        return noiseValue > -8.0D;                  // or whatever;
+    }
+```
+
+* A way to provide a `blockID` during the "Watering" stage.
+
+```java 
+    public int defaultFluidBlockID = Block.waterStill.blockID;
+```
+
+* A way to set visuals, like
+
+```java
+
+    public setVisuals (LevelGenerator levelGenerator, World world) {
+        world.cloudColor = 2164736;
+        world.fogColor = 1049600;
+        world.skyColor = 1049600;
+        world.skylightSubtracted = world.skyBrightness = 7;
+        world.defaultFluid = Block.lavaMoving.blockID;
+        if (levelGenerator.floatingGen) {
+            world.cloudHeight = height + 2;
+            levelGenerator.waterLevel = -16;
+        }
+    }
+```
+
+* A way to override default "Planting" stage completely. The `ModLoader` hook would return `false` if no match for `levelType` was found in the list of registered themes, `true` otherwise. And this method would be called to actually do the planting. If you don't need custom planting in your theme just put a `return false;` in this method or don't override the base class.
+
+```java
+    public boolean overridePlanting (LevelGenerator levelGenerator, World world) {
+
+    }
+```
+
+Ok - let's write the base class.
+
+```java
+package com.mojontwins.modloader;
+
+import net.minecraft.game.level.World;
+import net.minecraft.game.level.generator.LevelGenerator;
+
+public class ModLevelTheme {
+    public int waterLevelAdjust = 0;                // in blocks; no change
+    public String themeName = "";
+
+    /*
+     * Instantiate with the name which should appear in the "New Level" menu
+     */
+    public ModLevelTheme(String themeName) {
+        this.themeName = themeName;
+    }
+
+    /*
+     * Called each iteration to fill the empty block array with basic blocks
+     * Return -1 for the default generation.
+     */
+    public int getSoilingBlockID (LevelGenerator levelGenerator, int y, int floorLevel, int fillLevel, int islandBottomLevel) {
+        return -1;
+    }
+    
+    /*
+     * Normally beachLevel = levelGenerator.waterLevel -1. Leave unchanged or change it:
+     */
+    public int adjustBeachLevel (LevelGenerator levelGenerator, int beachLevel) {
+        return beachLevel;
+    }
+    
+    /*
+     * Called each iteration decide if sand is to be added to the world.
+     * return shouldGrow unchanged for the default behaviour, which is:
+     * noiseValue > -8.0D for islandGen, or
+     * noiseValue > 8.0D  for other gens.
+     */
+    boolean shouldGrow (LevelGenerator levelGeneartor, double noiseValue, boolean shouldGrow) {
+        return shouldGrow; 
+    }
+    
+    /*
+     * Called each iteration to know which block to add while growing.
+     * Return -1 for the default generation which is sand (grass for hell theme).
+     */
+    public int getGrowingBlockID (LevelGenerator levelGenerator) {
+        return -1;
+    }
+    
+    /*
+     * Use to select a custom BlockID for "water" (not much choice)
+     * Return -1 for the default generation which is Block.waterStill.BlockID;
+     */
+    public int getWateringBlockID (LevelGenerator levelGenerator) {
+        return -1;
+    }
+    
+    /*
+     * Use this to modify any of these world values:
+     * `world.skyColor` - 0x99CCFF by default
+     * `world.fogColor` - 0xFFFFFF by default
+     * `world.cloudColor` - 0xFFFFFF by default
+     * `skylightSubtracted` Seems to be 15 by default. Skeletons & zombies only burn at day if it is > 7.
+     * `skyBrightness` 15 by default.
+     * `defaultFluid` - water or lava (for hell).
+     */
+    public void setVisuals (LevelGenerator levelGenerator, World world) {
+    }
+    
+    /*
+     * Do your planting and return true, 
+     * or return false to let the engine do its thing.
+     */
+    public boolean overridePlanting (LevelGenerator levelGenerator, World world) {
+        return false;
+    }   
+}
+
+```
+
+And the hooks in `ModLoader`.
+
+```java
+    /*
+     * Register a new theme
+     */
+    public static int registerWorldTheme (ModLevelTheme levelTheme) {
+        int themeID = currentThemeID ++;
+        levelThemes.put (themeID, levelTheme);
+        
+        return themeID;
+    }
+
+    // etc...
+```
+
+So adding a new theme is a matter of extending `ModLevelTheme`, and then calling `registerWorldTheme` with an instance.
+
+To test this, I'm creating a Desert theme. But before I add the proper theme, I have to add Cacti and dead bushes, so I can make them spawn. I'll be adding a cactus generator as well. I don't know if I can make the cactus actually harm entities, but I'll try. Maybe I have to extend the engine, I don't know. Cacti are from Alpha 1.0.6. I can take the implementation from my uncompiled Alpha 1.1.1, should work. Mostly.
+
+I will be adding the original 1.0.6. cacti which didn't require a custom renderer. The bounding box is set to be smaller tho', I can do this. The damage to entities is performed via `onEntityCollidedWithBlock`, which is not in Indev's `Block` - albeit there's a `onEntityWalking`. Let's check if it's the same thing...
+
+Not. Both are called in `Entity.moveEntity`, but both have an `onEntityWalking`. Alpha has an extra block calling `onEntityCollideWithBlock` which I should replicate somehow.
+
+This bit: 
+
+```java
+    int bbMinX = MathHelper.floor_double(this.boundingBox.minX);
+    int bbMinY = MathHelper.floor_double(this.boundingBox.minY);
+    int bbMinZ = MathHelper.floor_double(this.boundingBox.minZ);
+    int bbMaxX = MathHelper.floor_double(this.boundingBox.maxX);
+    int bbMaxY = MathHelper.floor_double(this.boundingBox.maxY);
+    int bbMaxZ = MathHelper.floor_double(this.boundingBox.maxZ);
+
+    for(int x = bbMinX; x <= bbMaxX; ++x) {
+        for(int y = bbMinY; y <= bbMaxY; ++y) {
+            for(int z = bbMinZ; z <= bbMaxZ; ++z) {
+                int blockID = this.worldObj.getBlockId(x, y, z);
+                if (blockID > 0) {
+                    Block.blocksList[blockID].onEntityCollidedWithBlock(this.worldObj, x, y, z, this);
+                }
+            }
+        }
+    }
+```
+
+Let's add it :) And the default `onEntityCollidedWithBlock` to `Block`.
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.util.Random;
+
+    import net.minecraft.client.physics.AxisAlignedBB;
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.block.Material;
+    import net.minecraft.game.entity.Entity;
+    import net.minecraft.game.level.World;
+
+    public class BlockCactus extends ModBlock {
+        
+        public int bottomTextureIndex;
+        public int topTextureIndex;
+
+        public BlockCactus(int id, Material material) {
+            super(id, material);
+            this.setTickOnLoad(true);
+        }
+
+        public void updateTick(World var1, int var2, int var3, int var4, Random var5) {
+            // Attempt to grow cactus
+            if (var1.getBlockId(var2, var3 + 1, var4) == 0) {
+                int var6;
+                for(var6 = 1; var1.getBlockId(var2, var3 - var6, var4) == this.blockID; ++var6) {
+                }
+
+                // If not mex. height of 3 blocks...
+                if (var6 < 3) {
+                    int var7 = var1.getBlockMetadata(var2, var3, var4);
+                    
+                    // Can grow?
+                    if (var7 == 15) {
+                        var1.setBlockWithNotify(var2, var3 + 1, var4, this.blockID);
+                        var1.setBlockMetadata(var2, var3, var4, 0);
+                    } else {
+                        var1.setBlockMetadata(var2, var3, var4, var7 + 1);
+                    }
+                }
+            }
+        }
+        
+        public AxisAlignedBB getCollisionBoundingBoxFromPool(World var1, int var2, int var3, int var4) {
+            float var5 = 0.0625F;
+            return new AxisAlignedBB (
+                    (float)var2 + var5, var3, (float)var4 + var5, 
+                    (float)(var2 + 1) - var5, (float)(var3 + 1), (float)(var4 + 1) - var5);
+        }
+
+        public AxisAlignedBB getSelectedBoundingBoxFromPool(World var1, int var2, int var3, int var4) {
+            float var5 = 0.0625F;
+            return new AxisAlignedBB (
+                    (float)var2 + var5, var3, (float)var4 + var5, 
+                    (float)(var2 + 1) - var5, (float)(var3 + 1), (float)(var4 + 1) - var5);
+        }
+        
+        public int getBlockTextureFromSide(int var1) {
+            if (var1 == 0) return this.bottomTextureIndex;
+            if (var1 == 1) return this.topTextureIndex;
+            return this.blockIndexInTexture; 
+        }
+        
+        public boolean isOpaqueCube() {
+            return false;
+        }
+        
+        public boolean canPlaceBlockAt(World var1, int var2, int var3, int var4) {
+            return !super.canPlaceBlockAt(var1, var2, var3, var4) ? false : this.canBlockStay(var1, var2, var3, var4);
+        }
+        
+        public void onNeighborBlockChange(World var1, int var2, int var3, int var4, int var5) {
+            if (!this.canBlockStay(var1, var2, var3, var4)) {
+                this.dropBlockAsItem(var1, var2, var3, var4, var1.getBlockMetadata(var2, var3, var4));
+                var1.setBlockWithNotify(var2, var3, var4, 0);
+            }
+
+        }
+
+        public boolean canBlockStay(World var1, int var2, int var3, int var4) {
+            if (var1.getBlockMaterial(var2 - 1, var3, var4).isSolid()) {
+                return false;
+            } else if (var1.getBlockMaterial(var2 + 1, var3, var4).isSolid()) {
+                return false;
+            } else if (var1.getBlockMaterial(var2, var3, var4 - 1).isSolid()) {
+                return false;
+            } else if (var1.getBlockMaterial(var2, var3, var4 + 1).isSolid()) {
+                return false;
+            } else {
+                int var5 = var1.getBlockId(var2, var3 - 1, var4);
+                return var5 == this.blockID || var5 == Block.sand.blockID;
+            }
+        }
+
+        public void onEntityCollidedWithBlock(World var1, int var2, int var3, int var4, Entity var5) {
+            var5.attackEntityFrom((Entity)null, 1);
+        }
+    }
+```
+
+And this cactus generator. Indev didn't have *World Generators*, but we can add our class and use it. Why not.
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.util.Random;
+
+    import net.minecraft.game.level.World;
+
+    public class WorldGenCactus {
+        public WorldGenCactus() {
+        }
+
+        public boolean generate(World var1, Random var2, int var3, int var4, int var5) {
+            for(int var6 = 0; var6 < 10; ++var6) {
+                int var7 = var3 + var2.nextInt(8) - var2.nextInt(8);
+                int var8 = var4 + var2.nextInt(4) - var2.nextInt(4);
+                int var9 = var5 + var2.nextInt(8) - var2.nextInt(8);
+                if (var1.getBlockId(var7, var8, var9) == 0) {
+                    int var10 = 1 + var2.nextInt(var2.nextInt(3) + 1);
+
+                    for(int var11 = 0; var11 < var10; ++var11) {
+                        if (mod_DesertTheme.blockCactus.canBlockStay(var1, var7, var8 + var11, var9)) {
+                            var1.setBlock(var7, var8 + var11, var9, mod_DesertTheme.blockCactus.blockID);
+                        }
+                    }
+                }
+            }
+
+            return true;
+        }
+    }
+```
+
+Now the dead bush, which is just a ugly flower (or acts like one!) which can only grow on sand. Those were added on beta. As with lillypads, I'll have to manually add some stuff from `BlockFlower` as I want to extend `ModBlock`. No shears, so this is a really simple block: 
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.util.Random;
+
+    import net.minecraft.client.physics.AxisAlignedBB;
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.block.Material;
+    import net.minecraft.game.item.Item;
+    import net.minecraft.game.level.World;
+
+    public class BlockDeadBush extends ModBlock {
+
+        public BlockDeadBush(int id) {
+            super(id, Material.wood);
+
+            float f = 0.4F;
+            setBlockBounds(0.5F - f, 0.0F, 0.5F - f, 0.5F + f, 0.8F, 0.5F + f);
+        }
+
+        public final boolean canPlaceBlockAt(World var1, int var2, int var3, int var4) {
+            return this.canThisPlantGrowOnThisBlockID(var1.getBlockId(var2, var3 - 1, var4));
+        }   
+        
+        protected boolean canThisPlantGrowOnThisBlockID(int par1) {
+            return par1 == Block.sand.blockID;
+        }
+        
+        public final void onNeighborBlockChange(World var1, int var2, int var3, int var4, int var5) {
+            super.onNeighborBlockChange(var1, var2, var3, var4, var5);
+            this.checkFlowerChange(var1, var2, var3, var4);
+        }
+
+        public void updateTick(World var1, int var2, int var3, int var4, Random var5) {
+            this.checkFlowerChange(var1, var2, var3, var4);
+        }
+
+        private void checkFlowerChange(World var1, int var2, int var3, int var4) {
+            if (!this.canBlockStay(var1, var2, var3, var4)) {
+                this.dropBlockAsItem(var1, var2, var3, var4, var1.getBlockMetadata(var2, var3, var4));
+                var1.setBlockWithNotify(var2, var3, var4, 0);
+            }
+
+        }
+        
+        public boolean canBlockStay(World var1, int var2, int var3, int var4) {
+            return this.canThisPlantGrowOnThisBlockID(var1.getBlockId(var2, var3 - 1, var4));
+        }
+        
+        public final AxisAlignedBB getCollisionBoundingBoxFromPool(int var1, int var2, int var3) {
+            return null;
+        }
+
+        public final boolean isOpaqueCube() {
+            return false;
+        }
+
+        public final boolean renderAsNormalBlock() {
+            return false;
+        }
+
+        public int getRenderType() {
+            return 1;
+        }
+        
+        public int idDropped(int par1, Random rand, int par3) {
+            // 1 in 4 chance of dropping a stick
+            if (rand.nextInt(4) == 0) {
+                return Item.stick.shiftedIndex;
+            } else return -1;
+        }
+    }
+```
 
