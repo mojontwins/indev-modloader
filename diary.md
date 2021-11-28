@@ -3940,6 +3940,8 @@ And the hooks in `ModLoader`.
 
 So adding a new theme is a matter of extending `ModLevelTheme`, and then calling `registerWorldTheme` with an instance.
 
+## The Desert Theme
+
 To test this, I'm creating a Desert theme. But before I add the proper theme, I have to add Cacti and dead bushes, so I can make them spawn. I'll be adding a cactus generator as well. I don't know if I can make the cactus actually harm entities, but I'll try. Maybe I have to extend the engine, I don't know. Cacti are from Alpha 1.0.6. I can take the implementation from my uncompiled Alpha 1.1.1, should work. Mostly.
 
 I will be adding the original 1.0.6. cacti which didn't require a custom renderer. The bounding box is set to be smaller tho', I can do this. The damage to entities is performed via `onEntityCollidedWithBlock`, which is not in Indev's `Block` - albeit there's a `onEntityWalking`. Let's check if it's the same thing...
@@ -4179,4 +4181,162 @@ Now the dead bush, which is just a ugly flower (or acts like one!) which can onl
         }
     }
 ```
+
+With this on, I just need my theme class which extends `ModLevelTheme`. I just need some of the hooks for what I want:
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.block.BlockFlower;
+    import net.minecraft.game.level.World;
+    import net.minecraft.game.level.generator.LevelGenerator;
+
+    public class ThemeDesert extends ModLevelTheme {
+
+        public ThemeDesert(String themeName) {
+            super(themeName);
+        }
+
+        /*
+         * This method is called just before converting the double floor level to int
+         * and store it in the heighmap. You can further adjust it.
+         */
+        /*
+        public double adjustFloorLevel (LevelGenerator levelGenerator, double floorLevel) {
+            return floorLevel > 0.0D ? floorLevel * 4.0D : floorLevel;
+        }
+        */
+        // (Changed my mind - wont use this)
+
+        /*
+         * In the "Soiling" stage, the heightmap and a couple of noise generators are used to fill
+         * the blocks array with block, one column at a time. This method is called for each "y"
+         * in each column to select which block ID to put to the block array. For our desert,
+         * we'll be filling with sand from the top `floorLevel` to `fillLevel` (note that `fillLevel`
+         * may go over `floorLevel` sometimes), and from `fillLevel` down with stone. If the
+         * level generator is `floatingGen`, the bottom (`islandBottomLevel` & below) is filled with zeroes.
+         */
+        public int getSoilingBlockID (LevelGenerator levelGenerator, int y, int floorLevel, int fillLevel, int islandBottomLevel) {
+            int blockID = 0;
+            if (y <= floorLevel) {
+                blockID = Block.sand.blockID;
+            }
+
+            if (y <= fillLevel) {
+                blockID = Block.stone.blockID;
+            }
+
+            if (levelGenerator.floatingGen && y < islandBottomLevel) {
+                blockID = 0;
+            }
+            
+            return blockID;
+        }
+        
+        /*
+         * During the "Growing" stage the generator originally generated sand in some places
+         * We are generating dirt instead.
+         */
+        public int getGrowingBlockID (LevelGenerator levelGenerator) {
+            return Block.dirt.blockID;
+        }
+        
+        /*
+         * Set yellowish sandy shades for the sky, fog and clouds. Set the general light
+         * quite bright.
+         */
+        public void setVisuals (LevelGenerator levelGenerator, World world) {
+            world.skyColor = 0xCEBFA1;
+            world.fogColor = 0xE2E1A6;
+            world.cloudColor = 0xFFFED4;
+            world.skylightSubtracted = 15;
+            world.skyBrightness = 16;
+        }
+        
+        /*
+         * The main "planting" sections grows trees, flowers and mushrooms. We are
+         * overriding that and growing cacti and dead bushes. We are adding mushrooms
+         * as well, but below the water level, so they appear in caves underground.
+         */
+        public boolean overridePlanting (LevelGenerator levelGenerator, World world) {
+            int totalBlocks = world.width * world.length * world.height;
+            
+            // Spawn cacti
+            int cacti = totalBlocks / 500;
+            WorldGenCactus worldGenCactus = new WorldGenCactus ();
+            for (int i = 0; i < cacti; i ++) {
+                int x = levelGenerator.rand.nextInt(world.width);
+                int y = levelGenerator.rand.nextInt(world.height);
+                int z = levelGenerator.rand.nextInt(world.length);
+                worldGenCactus.generate(world, levelGenerator.rand, x,  y,  z);
+            }
+            
+            // Spawn dead bushes
+            int deadBushes = totalBlocks / 50;
+            for (int i = 0; i < deadBushes; i ++) {
+                int x = levelGenerator.rand.nextInt(world.width);
+                int y = levelGenerator.rand.nextInt(world.height);
+                int z = levelGenerator.rand.nextInt(world.length);
+                if (((BlockDeadBush)mod_DesertTheme.blockDeadBush).canBlockStay(world, x, y, z)) {
+                    world.setBlock(x, y, z, mod_DesertTheme.blockDeadBush.blockID);
+                }
+            }
+            
+            // Grow shrooms underground
+            int mushrooms = totalBlocks / 4000;
+
+            for(int i = 0; i < mushrooms; ++i) {
+                int x0 = levelGenerator.rand.nextInt(world.width);
+                int y0 = levelGenerator.rand.nextInt(world.waterLevel);
+                int z0 = levelGenerator.rand.nextInt(world.length);
+                
+                BlockFlower blockMushroom = levelGenerator.rand.nextBoolean() ? Block.mushroomBrown : Block.mushroomRed;
+
+                for(int j = 0; j < 10; ++j) {
+                    int x = x0;
+                    int y = y0;
+                    int z = z0;
+
+                    for(int k = 0; k < 10; ++k) {
+                        x += levelGenerator.rand.nextInt(4) - levelGenerator.rand.nextInt(4);
+                        y += levelGenerator.rand.nextInt(2) - levelGenerator.rand.nextInt(2);
+                        z += levelGenerator.rand.nextInt(4) - levelGenerator.rand.nextInt(4);
+                        if (x >= 0 && y >= 0 && z > 0 && x < world.width && y < world.length && z < world.height && world.getBlockId(x, y, z) == 0 && blockMushroom.canBlockStay(world, x, y, z)) {
+                            world.setBlockWithNotify(x, y, z, blockMushroom.blockID);
+                        }
+                    }
+                }
+            }
+            
+            return true;
+        }
+    }
+```
+
+TODO: Smelt cacti for food. 
+
+## The Poison level
+
+Ideas:
+
+* Default fluid is a new "poison" fluid which inflicts the "posioned" effect when touched by entities.
+* You can fill bottles with poison and throw them to the enemies <- interesting, replicate arrows or snowballs in later versions.
+* Soil is podsol.
+* Glowing huge mushrooms and small mushrooms.
+* Smelt mushrooms blocks for poison. Or add a new tile entity to distill poison.
+* Use sand to make glass, and glass to make bottles.
+* New skeleton variation.
+* Make tall mesas:
+
+This seems to make nice tall mesas: 
+
+```java
+    public double adjustFloorLevel (LevelGenerator levelGenerator, double floorLevel) {
+        if (floorLevel > 8.0D) floorLevel += 16.0D;
+        return floorLevel;
+    }
+```
+
+Study how to change (or parametrize) the cave generator for bigger caves.
 
