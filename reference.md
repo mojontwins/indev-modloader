@@ -1532,6 +1532,16 @@ For example:
     }
 ```
 
+# World generation
+
+## Level Themes
+
+Vanilla Indev offers four level themes: normal, hell, paradise and woods, which define some basic properties of level generation. With ModLoader you can easily add your own themes to the menu, with their own properties. 
+
+To better understand how themes work, a basic explanation of how the level generator works is needed:
+
+ 
+
 # Full example: Clay stuff
 
 We'll try and add a new mod which adds clay, means of getting clay, buckets you can fill with water and drop elsewhere, a new tile entity to make clay with sand/dirt, water, and time, etc.

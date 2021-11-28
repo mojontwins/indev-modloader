@@ -4340,3 +4340,13 @@ This seems to make nice tall mesas:
 
 Study how to change (or parametrize) the cave generator for bigger caves.
 
+### Intermision: Level theme and spawner
+
+I need to devise a good way of limiting which mobs will spawn depending on the active level theme, as in by default all mobs can be spawned, but you can stop some existing mobs from spawning in your theme.
+
+Luckily, I'm now storing `levelType` in the world object.
+
+I'm rehashing how spawning lists work. Now you should add your mobs in a special method in your mod - which will be called everytime a level is about to be created, so you can control if you are populating the maps or not.
+
+Have to document this urgently.
+
