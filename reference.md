@@ -115,6 +115,14 @@ By default, your blocks will return the same block when harvested. This is becau
 
 To make your block act differently, just override these methods in your block class. `idDropped` returns the id of the block of item which will drop upon harvesting your block, and `quantityDropped` returns the quantity. You even get a `Random` object if you need to ramdomize it.
 
+### Animated textures
+
+To use an animated texture, you must call `addAnimation` rather than `addOverride` when assigning to the block's `blockIndexInTexture` or any custom texture index attribute. Parameters are the same plus an extra `ticksPerFrame` value at the end, which defines how many ticks each animation frame stays. The `textureAtlasURI` must be a png file with all the animation frames stitched vertically. 
+
+```java
+    public static int addAnimation (EnumTextureAtlases textureAtlas, String textureAtlasURI, int ticksPerFrame);
+```
+
 ### Blocks with a custom ItemBlock class
 
 By default, `ModLoader` registers blocks by creating an `ItemBlock` instance, but you can use your own `Item` class instead. Just pass its `.class` attribute when registering your block:
@@ -1184,7 +1192,7 @@ To add a new mod you need at least one new class: the one which describes your `
     ModLoader.addEntityRenderer(EntitTest.class, new RenderTest(new ModelTest (), 0.5F));
 ```
 
-* Register your entity. 
+* Register your entity. You have to do this in a special method in your mod class called `populateMobsHashMap`. This method is called to let you populate the default monster and animal lists (or even modify them!) after the world theme (normal, hell, paradise, woods, or your own) has been selected.
 
 ```java
     ModLoader.registerMonsterEntity (entityTestID, EntitTest.class);
@@ -1540,7 +1548,731 @@ Vanilla Indev offers four level themes: normal, hell, paradise and woods, which 
 
 To better understand how themes work, a basic explanation of how the level generator works is needed:
 
- 
+1. Initial setup is performed.
+
+2. As a special case, if you select "floating islands" and a "deep" shape, the generation steps will be iterated 5 times, each at a different height, and the results combined in a single blocks array.
+
+3. Water level is calculated. Initially at level 32 for normal levels (which are 64 blocks high), or 192 for "deep" levels, (which are 256 blocks high). For "floating islands" + "deep" levels, this value changes on each iteration: 192, 176, 128, 80 and 32.
+
+4. **Raising**: The basic height map is calculated: for each (x, z) coordinate, a floor level is calculated based upon a couple of noise generators and some weird math.
+
+5. **Eroding**: The height map is modified. Using again a couple of noise generators it "erodes" the surface by 1 block at some places.
+
+6. **Soiling**: Using the height map, the block array is filled with actual blocks. The level stored in the height map becomes `floorLevel`, and based upon it and using again the noise generators, a `fillLevel` is calculated, generally below `floorLevel`, but sometimes surparsing it. If floating islands are being generated, some extra math is used to calculate a `islandBottomLevel`. Then, the block array is filled with dirt from `floorLevel` to `fillLevel` (note that this segment may not exist) and with stone from `floorLevel` down - up to `islandBottomLevel` for floating islands.
+
+7. **Growing**: This section adds sand and gravel to the world. It sets a `beachLevel` just 1 block below `waterLevel`, or 2 blocks above if `levelType` is 2 (paradise). If the height map goes below this level, and using a chance controlled by a noise generator which depends on the level theme, it fills with sand.  It sometimes replaces water with gravel on shallow ponds.
+
+8. **Carving**: A digger which runs for a distance varying angles in the process carves the world to make caves.
+
+The iterator which runs the above process five times for "deep" floating islands ends here. The remaining steps are performed over the block array which is now populated with 5 floors of floating islands.
+
+9. Ore generation: After caves are created, ore is added to the world in several quantities by replacing stone. 
+
+10. **Melting**: Lava ponds are added.
+
+11. At this point, the cloud height is set, and water and ground level are adjusted as follows: 
+
+* Generally, `cloudHeight` is `height` + 2.
+* if `floatingGen`, `groundLevel` is set to -128, `waterLevel` to -127, and `cloudHeight` to -16, all bellow the bottom of the map.
+* if `islandGen`, `groundLevel` is set to `waterLevel` - 9, that is, 32 - 9 = 23.
+* if `flatGen` or inland, `groundLevel` is `waterLevel` + 1, that is, 33, then `waterLevel` is adjusted to `groundLevel` - 16, becoming 17.
+
+12. **Watering**: Water (or lava, for `levelType` 2 "hell") is then added below `waterLevel` using floor fills.
+
+13. Level visuals: Based upon `levelType` (normal, hell, paradise or woods) several values are set:
+
+* `world.skyColor` - 0x99CCFF by default
+* `world.fogColor` - 0xFFFFFF by default
+* `world.cloudColor` - 0xFFFFFF by default
+* `skylightSubtracted` Seems to be 15 by default. Skeletons & zombies only burn at day if it is > 7.
+* `skyBrightness` 15 by default.
+* `defaultFluid` - water or lava (for hell).
+
+14. **Assembling**: Sets up the world object. Copies the block array to the world. Sets up special bordes for several generators. Adds bedrock. Sets up the light levels.
+
+15. **Building**: Finds a spawn and generates the Indev house around it. We also added a call to `hookGenerateStructures (levelGenerator, world)` to easily add structures from our mods.
+
+16. **Planting**: Grass is grown on exposed dirt. Trees are planted (times 50 for the "wood" theme!). Flowers are added (using a multiplier of 1000 for the "paradise" theme, 100 otherwise) and mushrooms are grown (multiplier 50).
+
+17. **Lighting**: Light is updated.
+
+(A more detailed & technical breakdown can be found in the diary)
+
+Note how the some customization is performed by selecting the world theme. We have expanded on this letting you create your own themes using a set of hooks and values.
+
+## The `ModLevelTheme` class
+
+Level themes are added by registering instances of classes which extend the `ModLevelTheme` class. Your themes are then added to the "New Level" menu and can be selected alongside the existing "normal", "hell", "paradise" and "woods" themes.
+
+Extending the `ModLevelTheme` class with an empty class or registering a instance of `ModLevelTheme` directly would result on a copy of the "normal" theme. Overriding the provided attributes and methods and adding your code to them you can create your own themes:
+
+### Adjust the water level
+
+```java
+    public int waterLevelAdjust = 0;                // in blocks; no change
+```
+
+In step 3, water level is calculated. The value you assign to this variable is added to the calculated water level for each step of generation (remember that the five first generation steps are performed five times for "deep" floating islands). Raise the water level using a positive value, or lower it using a negative value, measured in blocks.
+
+### Adjust the floor level
+
+```java
+    public double adjustFloorLevel (LevelGenerator levelGenerator, double floorLevel) {
+        return floorLevel;
+    }
+```
+
+This hook is called during the **Raising** stage, just before the `floorLevel` calculated for each (x, z) cell in the horizontal plane is about to be converted to `int` and written to the height map. You can leave the level unchanged or modify it. Examples:
+
+```java
+    // Steeper hills
+    return floorLevel < 0.0D ? floorLevel : floorLevel * 4;
+```
+
+```java
+    // Deeper oceans and pools
+    return floorLevel < 0.0D ? floorLevel * 4 : floorLevel;
+```
+
+```java
+    // Bumpier overall
+    return floorLevel * 2;
+```
+
+```java
+    // Nice high mesas
+    return floorLevel > 8.0D ? floorLevel += 16.0D : floorLevel;
+```
+
+etc.
+
+### Adjust the calculated height map
+
+```java
+    public void adjustHeightMap (LevelGenerator levelGenerator, int [] heightMap) {
+    }
+```
+
+After the **Eroding** stage, you can further modify the adjusted `heightmap` (which is an `int [levelGenerator.width * levelGenerator.depth]`).
+
+### Do your own "soiling"
+
+```java
+    public int getSoilingBlockID (LevelGenerator levelGenerator, int y, int floorLevel, int fillLevel, int islandBottomLevel) {
+        return -1;
+    }
+```
+
+Let's you override the default behaviour as described above for the **Soiling** stage. Return which `blockID` to write to the block array based upon the current `y` and based upon the calculated `fllorLevel`, `filllevel` and `islandBottomLevel`. You can start by replicating the existing code and then tweaking it:
+
+```java
+    public int getSoilingBlockID (LevelGenerator levelGenerator, int y, int floorLevel, int fillLevel, int islandBottomLevel) {
+        int blockID = 0;
+        if (y <= floorLevel) {
+            blockID = Block.dirt.blockID;
+        }
+
+        if (y <= fillLevel) {
+            blockID = Block.stone.blockID;
+        }
+
+        if (levelGenerator.floatingGen && y < islandBottomLevel) {
+            blockID = 0;
+        }
+        
+        return blockID;
+    }
+```
+
+Note that ores are only generated by replacing stone blocks, so be careful with this.
+
+### Customising the Growing stage
+
+I'd recommend reading what's in the diary about this stage and trying to understand the code. Once you have, you can tweak the behaviour with these three methods:
+
+```java
+    
+    /*
+     * Normally beachLevel = levelGenerator.waterLevel -1. Leave unchanged or change it:
+     */
+    public int adjustBeachLevel (LevelGenerator levelGenerator, int beachLevel) {
+        return beachLevel;
+    }
+    
+    /*
+     * Called each iteration decide if sand is to be added to the world.
+     * return shouldGrow unchanged for the default behaviour, which is:
+     * noiseValue > -8.0D for islandGen, or
+     * noiseValue > 8.0D  for other gens.
+     */
+    boolean shouldGrow (LevelGenerator levelGeneartor, double noiseValue, boolean shouldGrow) {
+        return shouldGrow; 
+    }
+    
+    /*
+     * Called each iteration to know which block to add while growing.
+     * Return -1 for the default generation which is sand (grass for hell theme).
+     */
+    public int getGrowingBlockID (LevelGenerator levelGenerator) {
+        return -1;
+    }
+```
+
+### Make your ocean
+
+In the **Watering** a flood fill is performed in the four corners of the horizontal plane set at `waterLevel` to create the surrounding ocean (if appliable). You can select which `blockID` to use. Returning `-1` will select `Block.waterstill.blockID`. 
+
+```java
+    public int getWateringBlockID (LevelGenerator levelGenerator) {
+        return -1;
+    }
+```
+
+### Configure the level visuals
+
+```java
+    public void setVisuals (LevelGenerator levelGenerator, World world) {
+    }
+```
+
+Use this to modify any of these world values:
+
+* `world.skyColor` - 0x99CCFF by default
+* `world.fogColor` - 0xFFFFFF by default
+* `world.cloudColor` - 0xFFFFFF by default
+* `world.skylightSubtracted` Seems to be 15 by default. Skeletons & zombies only burn at day if it is > 7.
+* `world.skyBrightness` 15 by default.
+* `world.defaultFluid` - water or lava (for hell).
+
+### Do your own planting
+
+```java
+    public boolean overridePlanting (LevelGenerator levelGenerator, World world) {
+        return false;
+    }  
+```
+
+If you return `true`, the **planting** stage will be overriden. Add your custom plants here. 
+
+## Registering your new theme
+
+To register a new theme, create your theme class extending `ModLevelTheme`, and then call `ModLoader.RegisterTheme` with a new object of your theme class. The String used in the constructor will be the name of your theme shown in the new level menu:
+
+```java
+    int yourThemeID;
+
+    [...]
+
+    yourThemeID = ModLoader.registerWorldTheme(new ThemeYourTheme("Your Theme"));
+```
+
+# Simple example: generate seaweeds!
+
+Oceans are boring. Let's add seaweeds with animated textures. Start by adding the new block class. Note that we are using `renderIndex` 1, and that we are attempting to grow our seaweeds at random, with a 1:4 chance:
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.util.Random;
+
+    import net.minecraft.client.physics.AxisAlignedBB;
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.block.Material;
+    import net.minecraft.game.level.World;
+
+    public class BlockSeaWeed extends ModBlock {
+
+        public BlockSeaWeed(int id) {
+            super(id, Material.water);
+            this.setTickOnLoad(true);
+        }
+
+        public boolean canPlaceBlockAt(World world, int x, int y, int z) {
+            return world.getBlockId(x, y, z) == Block.waterStill.blockID 
+                    && world.getBlockId(x, y + 1, z) == Block.waterStill.blockID 
+                    && canThisPlantGrowOnThisBlockID(world.getBlockId(x, y - 1, z));
+        }
+        
+        protected boolean canThisPlantGrowOnThisBlockID(int par1) {
+            return par1 == blockID || par1 == Block.dirt.blockID 
+                    || par1 == Block.sand.blockID
+                    || par1 == Block.stone.blockID;
+        }    
+        
+        public void onNeighborBlockChange(World world, int x, int y, int z, int neighborBlockID) {
+            if (!canBlockStay(world, x, y, z)) {
+                dropBlockAsItem(world, x, y, z, world.getBlockMetadata(x, y, z));
+                world.setBlockWithNotify(x, y, z, Block.waterStill.blockID);
+            }
+        }
+        
+        public void updateTick(World world, int x, int y, int z, Random rand) {
+            if (rand.nextInt (4) == 0) {
+                if (world.getBlockId(x, y + 1, z) == Block.waterStill.blockID && world.getBlockId(x, y + 2, z) == Block.waterStill.blockID ) {
+                    world.setBlockWithNotify(x, y + 1, z, blockID);
+                }
+            }
+        }
+        
+        public boolean canBlockStay(World world, int x, int y, int z) {
+            return canThisPlantGrowOnThisBlockID(world.getBlockId(x, y - 1, z));
+        }
+        
+        public AxisAlignedBB getCollisionBoundingBoxFromPool(World par1World, int par2, int par3, int i) {
+            return null;
+        }
+        
+        public boolean isOpaqueCube() {
+            return false;
+        }
+        
+        public boolean renderAsNormalBlock() {
+            return false;
+        }
+        
+        public int getRenderType() {
+            return 1;
+        }
+    }
+```
+
+In your mod class, create the block, assign an animation as texture, and register it:
+
+```java
+    // Seaweeds with animated textures
+    blockSeaWeed = new BlockSeaWeed(ModLoader.getItemId()).setBlockHardness(0.2F).setName("block.sea_weed");
+    blockSeaWeed.blockIndexInTexture = ModLoader.addAnimation(EnumTextureAtlases.TERRAIN, "textures/block_seaweed.png", 1);
+    ModLoader.registerBlock(blockSeaWeed);
+```
+
+And finally, add a simple generator to the `hookPlanting` method.
+
+```java
+    public void hookPlanting (LevelGenerator levelGenerator, World world, Random rand) {
+        int worldArea = world.length * world.width;
+        
+        // Grow seaweeds
+        int numSeaWeeds = worldArea / 4;
+        for (int i = 0; i < numSeaWeeds; i ++) {
+            int x = rand.nextInt(world.width);
+            int z = rand.nextInt(world.length);
+            int y = world.getSeaBed(x, z);
+            
+            if (y > 0) {
+                int height = 4 + rand.nextInt(4);
+                for (int j = 0; j < height && y < world.waterLevel - 2; j ++) {
+                    y ++;
+                    if (world.getBlockId(x, y, z) == Block.waterStill.blockID) {
+                        world.setBlockWithNotify(x, y, z, blockSeaWeed.blockID);
+                    }
+                }
+            }           
+        }
+    } 
+```
+
+# Full example: The Desert theme
+
+The Desert theme replaces dirt with sand, trees with cacti and flowers with dead bushes. No trees mean that the only wood you can get should come from our spawning house. You can get sticks from dead bushes as well. Zombies will be turned to Husks if they are spawned on sand. 
+
+But before we add the proper theme, we have to add cacti and dead bushes for the planting stage. We'll be adding a cactus generator as well. Cacti are taken from Alpha 1.0.6, where they appeared first and didn't require a custom renderer. We *could* add the custom renderer, but I want to keep with the "classic" feel as much as possible.
+
+`BlockCactus` is your usual plan, with methods to tell wether it can be placed and / or grown, and methods to make the plant collapse if it's cut below the top. At this point, you should be familiar with all that's going on here:
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.util.Random;
+
+    import net.minecraft.client.physics.AxisAlignedBB;
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.block.Material;
+    import net.minecraft.game.entity.Entity;
+    import net.minecraft.game.level.World;
+
+    public class BlockCactus extends ModBlock {
+        
+        public int bottomTextureIndex;
+        public int topTextureIndex;
+
+        public BlockCactus(int id) {
+            super(id, Material.plants);
+            this.setTickOnLoad(true);
+        }
+
+        public void updateTick(World var1, int var2, int var3, int var4, Random var5) {
+            // Attempt to grow cactus
+            if (var1.getBlockId(var2, var3 + 1, var4) == 0) {
+                int var6;
+                for(var6 = 1; var1.getBlockId(var2, var3 - var6, var4) == this.blockID; ++var6) {
+                }
+
+                // If not mex. height of 3 blocks...
+                if (var6 < 3) {
+                    int var7 = var1.getBlockMetadata(var2, var3, var4);
+                    
+                    // Can grow?
+                    if (var7 == 15) {
+                        var1.setBlockWithNotify(var2, var3 + 1, var4, this.blockID);
+                        var1.setBlockMetadata(var2, var3, var4, 0);
+                    } else {
+                        var1.setBlockMetadata(var2, var3, var4, var7 + 1);
+                    }
+                }
+            }
+        }
+        
+        public AxisAlignedBB getCollisionBoundingBoxFromPool(World var1, int var2, int var3, int var4) {
+            float var5 = 0.0625F;
+            return new AxisAlignedBB (
+                    (float)var2 + var5, var3, (float)var4 + var5, 
+                    (float)(var2 + 1) - var5, (float)(var3 + 1), (float)(var4 + 1) - var5);
+        }
+
+        public AxisAlignedBB getSelectedBoundingBoxFromPool(World var1, int var2, int var3, int var4) {
+            float var5 = 0.0625F;
+            return new AxisAlignedBB (
+                    (float)var2 + var5, var3, (float)var4 + var5, 
+                    (float)(var2 + 1) - var5, (float)(var3 + 1), (float)(var4 + 1) - var5);
+        }
+        
+        public int getBlockTextureFromSide(int var1) {
+            if (var1 == 0) return this.bottomTextureIndex;
+            if (var1 == 1) return this.topTextureIndex;
+            return this.blockIndexInTexture; 
+        }
+        
+        public boolean isOpaqueCube() {
+            return false;
+        }
+        
+        public boolean canPlaceBlockAt(World var1, int var2, int var3, int var4) {
+            return !super.canPlaceBlockAt(var1, var2, var3, var4) ? false : this.canBlockStay(var1, var2, var3, var4);
+        }
+        
+        public void onNeighborBlockChange(World var1, int var2, int var3, int var4, int var5) {
+            if (!this.canBlockStay(var1, var2, var3, var4)) {
+                this.dropBlockAsItem(var1, var2, var3, var4, var1.getBlockMetadata(var2, var3, var4));
+                var1.setBlockWithNotify(var2, var3, var4, 0);
+            }
+
+        }
+
+        public boolean canBlockStay(World var1, int var2, int var3, int var4) {
+            if (var1.getBlockMaterial(var2 - 1, var3, var4).isSolid()) {
+                return false;
+            } else if (var1.getBlockMaterial(var2 + 1, var3, var4).isSolid()) {
+                return false;
+            } else if (var1.getBlockMaterial(var2, var3, var4 - 1).isSolid()) {
+                return false;
+            } else if (var1.getBlockMaterial(var2, var3, var4 + 1).isSolid()) {
+                return false;
+            } else {
+                int var5 = var1.getBlockId(var2, var3 - 1, var4);
+                return var5 == this.blockID || var5 == Block.sand.blockID;
+            }
+        }
+
+        public void onEntityCollidedWithBlock(World var1, int var2, int var3, int var4, Entity var5) {
+            var5.attackEntityFrom((Entity)null, 1);
+        }
+    }
+```
+
+The generator class just uses cacti blocks to grow cacti on sand. WorldGen classes weren't a thing in Indev, but anyways:
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.util.Random;
+
+    import net.minecraft.game.level.World;
+
+    public class WorldGenCactus {
+        public WorldGenCactus() {
+        }
+
+        public boolean generate(World var1, Random var2, int var3, int var4, int var5) {
+            for(int var6 = 0; var6 < 10; ++var6) {
+                int var7 = var3 + var2.nextInt(8) - var2.nextInt(8);
+                int var8 = var4 + var2.nextInt(4) - var2.nextInt(4);
+                int var9 = var5 + var2.nextInt(8) - var2.nextInt(8);
+                if (var1.getBlockId(var7, var8, var9) == 0) {
+                    int var10 = 1 + var2.nextInt(var2.nextInt(3) + 1);
+
+                    for(int var11 = 0; var11 < var10; ++var11) {
+                        if (((BlockCactus)mod_DesertTheme.blockCactus).canBlockStay(var1, var7, var8 + var11, var9)) {
+                            var1.setBlock(var7, var8 + var11, var9, mod_DesertTheme.blockCactus.blockID);
+                        }
+                    }
+                }
+            }
+
+            return true;
+        }
+    }
+```
+
+Dead bushes are also plants. I'll be using the old dead bush texture (it was later replaced) and the usual "cross" rendered used by flowers and mushrooms, which happens to be `renderType` 1.
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.util.Random;
+
+    import net.minecraft.client.physics.AxisAlignedBB;
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.block.Material;
+    import net.minecraft.game.item.Item;
+    import net.minecraft.game.level.World;
+
+    public class BlockDeadBush extends ModBlock {
+
+        public BlockDeadBush(int id) {
+            super(id, Material.wood);
+
+            float f = 0.4F;
+            setBlockBounds(0.5F - f, 0.0F, 0.5F - f, 0.5F + f, 0.8F, 0.5F + f);
+        }
+
+        public final boolean canPlaceBlockAt(World var1, int var2, int var3, int var4) {
+            return this.canThisPlantGrowOnThisBlockID(var1.getBlockId(var2, var3 - 1, var4));
+        }   
+        
+        protected boolean canThisPlantGrowOnThisBlockID(int par1) {
+            return par1 == Block.sand.blockID;
+        }
+        
+        public final void onNeighborBlockChange(World var1, int var2, int var3, int var4, int var5) {
+            super.onNeighborBlockChange(var1, var2, var3, var4, var5);
+            this.checkFlowerChange(var1, var2, var3, var4);
+        }
+
+        public void updateTick(World var1, int var2, int var3, int var4, Random var5) {
+            this.checkFlowerChange(var1, var2, var3, var4);
+        }
+
+        private void checkFlowerChange(World var1, int var2, int var3, int var4) {
+            if (!this.canBlockStay(var1, var2, var3, var4)) {
+                this.dropBlockAsItem(var1, var2, var3, var4, var1.getBlockMetadata(var2, var3, var4));
+                var1.setBlockWithNotify(var2, var3, var4, 0);
+            }
+
+        }
+        
+        public boolean canBlockStay(World var1, int var2, int var3, int var4) {
+            return var1.getBlockId(var2, var3, var4) == 0 && this.canThisPlantGrowOnThisBlockID(var1.getBlockId(var2, var3 - 1, var4));
+        }
+        
+        public final AxisAlignedBB getCollisionBoundingBoxFromPool(int var1, int var2, int var3) {
+            return null;
+        }
+
+        public final boolean isOpaqueCube() {
+            return false;
+        }
+
+        public final boolean renderAsNormalBlock() {
+            return false;
+        }
+
+        public int getRenderType() {
+            return 1;
+        }
+        
+        public int idDropped(int par1, Random rand) {
+            // 1 in 4 chance of dropping a stick
+            if (rand.nextInt(4) == 0) {
+                return Item.stick.shiftedIndex;
+            } else return -1;
+        }
+    }
+```
+
+Once we have our classes in place, let's create the theme class, extending `ModLevelTheme`. Note that this is a rather simple theme definition and not all methods have been overriden. Pay special attention to the last method, `overridePlanting`, where we spawn dead bushes and call the cacti generator:
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.block.BlockFlower;
+    import net.minecraft.game.level.World;
+    import net.minecraft.game.level.generator.LevelGenerator;
+
+    public class ThemeDesert extends ModLevelTheme {
+
+        public ThemeDesert(String themeName) {
+            super(themeName);
+        }
+        
+        /*
+         * In the "Soiling" stage, the heightmap and a couple of noise generators are used to fill
+         * the blocks array with block, one column at a time. This method is called for each "y"
+         * in each column to select which block ID to put to the block array. For our desert,
+         * we'll be filling with sand from the top `floorLevel` to `fillLevel` (note that `fillLevel`
+         * may go over `floorLevel` sometimes), and from `fillLevel` down with stone. If the
+         * level generator is `floatingGen`, the bottom (`islandBottomLevel` & below) is filled with zeroes.
+         */
+        public int getSoilingBlockID (LevelGenerator levelGenerator, int y, int floorLevel, int fillLevel, int islandBottomLevel) {
+            int blockID = 0;
+            if (y <= floorLevel) {
+                blockID = Block.sand.blockID;
+            }
+
+            if (y <= fillLevel) {
+                blockID = Block.stone.blockID;
+            }
+
+            if (levelGenerator.floatingGen && y < islandBottomLevel) {
+                blockID = 0;
+            }
+            
+            return blockID;
+        }
+        
+        /*
+         * During the "Growing" stage the generator originally generated sand in some places
+         * We are generating dirt instead.
+         */
+        public int getGrowingBlockID (LevelGenerator levelGenerator) {
+            return Block.dirt.blockID;
+        }
+        
+        /*
+         * Set yellowish sandy shades for the sky, fog and clouds. Set the general light
+         * quite bright.
+         */
+        public void setVisuals (LevelGenerator levelGenerator, World world) {
+            world.skyColor = 0xCEBFA1;
+            world.fogColor = 0xE2E1A6;
+            world.cloudColor = 0xFFFED4;
+            world.skylightSubtracted = 15;
+            world.skyBrightness = 16;
+        }
+        
+        /*
+         * The main "planting" sections grows trees, flowers and mushrooms. We are
+         * overriding that and growing cacti and dead bushes. We are adding mushrooms
+         * as well, but below the water level, so they appear in caves underground.
+         */
+        public boolean overridePlanting (LevelGenerator levelGenerator, World world) {
+            int totalBlocks = world.width * world.length * world.height;
+            
+            // Spawn cacti
+            int cacti = totalBlocks / 500;
+            WorldGenCactus worldGenCactus = new WorldGenCactus ();
+            for (int i = 0; i < cacti; i ++) {
+                int x = levelGenerator.rand.nextInt(world.width);
+                int y = levelGenerator.rand.nextInt(world.height);
+                int z = levelGenerator.rand.nextInt(world.length);
+                worldGenCactus.generate(world, levelGenerator.rand, x,  y,  z);
+            }
+            
+            // Spawn dead bushes
+            int deadBushes = totalBlocks / 50;
+            for (int i = 0; i < deadBushes; i ++) {
+                int x = levelGenerator.rand.nextInt(world.width);
+                int y = levelGenerator.rand.nextInt(world.height);
+                int z = levelGenerator.rand.nextInt(world.length);
+                if (((BlockDeadBush)mod_DesertTheme.blockDeadBush).canBlockStay(world, x, y, z)) {
+                    world.setBlock(x, y, z, mod_DesertTheme.blockDeadBush.blockID);
+                }
+            }
+            
+            // Grow shrooms underground
+            int mushrooms = totalBlocks / 4000;
+
+            for(int i = 0; i < mushrooms; ++i) {
+                int x0 = levelGenerator.rand.nextInt(world.width);
+                int y0 = levelGenerator.rand.nextInt(world.waterLevel);
+                int z0 = levelGenerator.rand.nextInt(world.length);
+                
+                BlockFlower blockMushroom = levelGenerator.rand.nextBoolean() ? Block.mushroomBrown : Block.mushroomRed;
+
+                for(int j = 0; j < 10; ++j) {
+                    int x = x0;
+                    int y = y0;
+                    int z = z0;
+
+                    for(int k = 0; k < 10; ++k) {
+                        x += levelGenerator.rand.nextInt(4) - levelGenerator.rand.nextInt(4);
+                        y += levelGenerator.rand.nextInt(2) - levelGenerator.rand.nextInt(2);
+                        z += levelGenerator.rand.nextInt(4) - levelGenerator.rand.nextInt(4);
+                        if (x >= 0 && y >= 0 && z > 0 && x < world.width && y < world.length && z < world.height && world.getBlockId(x, y, z) == 0 && blockMushroom.canBlockStay(world, x, y, z)) {
+                            world.setBlockWithNotify(x, y, z, blockMushroom.blockID);
+                        }
+                    }
+                }
+            }
+            
+            return true;
+        }
+    }
+```
+
+The last step to make all this happen is creating our mod class. In `mod_DeserTheme` I instantiate the block classes and register the new blocks, configure husks, add the hooks needed to make them spawn, and finally I register the new theme so it's a thing and it's selectable in the new level menú:
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.client.model.ModelZombie;
+    import net.minecraft.client.renderer.entity.RenderLiving;
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.level.World;
+
+    public class mod_DesertTheme extends BaseMod {
+        public static ModBlock blockCactus;
+        public static ModBlock blockDeadBush;
+        
+        public static int desertThemeID;
+        public static int entityHuskMobID;
+        
+        public mod_DesertTheme() {
+        }
+
+        @Override
+        public void load() throws Exception {
+            
+            // Add some extra blocks
+            
+            blockCactus = new BlockCactus(ModLoader.getBlockId ()).setBlockHardness(0.4F).setName("block.cactus");
+            blockCactus.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_cactus.png");
+            ((BlockCactus)blockCactus).bottomTextureIndex = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_cactus_bottom.png");
+            ((BlockCactus)blockCactus).topTextureIndex = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_cactus_top.png");
+            ModLoader.registerBlock(blockCactus);
+            
+            blockDeadBush = new BlockDeadBush(ModLoader.getBlockId()).setBlockHardness(0.1F).setName("block.dead_bush");
+            blockDeadBush.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_dead_bush.png");
+            ModLoader.registerBlock(blockDeadBush);
+            
+            // Add the level theme
+            
+            desertThemeID = ModLoader.registerWorldTheme(new ThemeDesert("Desert"));
+            
+            // Add husks
+            
+            entityHuskMobID = ModLoader.getNewMobID();
+            ModLoader.addEntityRenderer(EntityHusk.class, new RenderLiving(new ModelZombie (), 0.5F));
+            // Note how husks are NOT registered as monsters as we don't want the engine to auto-select them.
+
+        }
+        
+        public int spawnerSelectMonsterBasedOnPosition (int entityID, World world, int x, int y, int z) {
+            // If it's a Zombie and it's been placed on sand...
+            if (entityID == 3 && (world.getBlockId(x, y, z) == Block.sand.blockID || world.getBlockId(x, y - 1, z) == Block.sand.blockID)) {
+                // It's now a husk!
+                entityID = entityHuskMobID; 
+            }
+            return entityID;
+        }
+
+        public Object spawnMonster (int entityID, World world) {        
+            if (entityID == entityHuskMobID) return new EntityHusk(world);
+            
+            return null;
+        }
+    }
+```
 
 # Full example: Clay stuff
 

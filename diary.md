@@ -26,6 +26,7 @@ So I don't forget:
 * [ ] Custom fuel
 * [ ] Engine fix - Prevent eating food when right-clicking tile entities!
 * [ ] Engine fix - Correct bug that makes the indev house not spawn.
+* [ ] Engine addition - Shift to crouch - do not fall from ledges.
 
 # 1. Creating a basic ModBase class
 
@@ -4316,13 +4317,23 @@ With this on, I just need my theme class which extends `ModLevelTheme`. I just n
 
 TODO: Smelt cacti for food. 
 
+### Intermision: Level theme and spawner
+
+I need to devise a good way of limiting which mobs will spawn depending on the active level theme, as in by default all mobs can be spawned, but you can stop some existing mobs from spawning in your theme.
+
+Luckily, I'm now storing `levelType` in the world object.
+
+I'm rehashing how spawning lists work. Now you should add your mobs in a special method in your mod - which will be called everytime a level is about to be created, so you can control if you are populating the maps or not.
+
+Have to document this urgently.
+
 ## The Poison level
 
 Ideas:
 
 * Default fluid is a new "poison" fluid which inflicts the "posioned" effect when touched by entities.
 * You can fill bottles with poison and throw them to the enemies <- interesting, replicate arrows or snowballs in later versions.
-* Soil is podsol.
+* Soil is podzol.
 * Glowing huge mushrooms and small mushrooms.
 * Smelt mushrooms blocks for poison. Or add a new tile entity to distill poison.
 * Use sand to make glass, and glass to make bottles.
@@ -4340,13 +4351,895 @@ This seems to make nice tall mesas:
 
 Study how to change (or parametrize) the cave generator for bigger caves.
 
-### Intermision: Level theme and spawner
+### The podzol block
 
-I need to devise a good way of limiting which mobs will spawn depending on the active level theme, as in by default all mobs can be spawned, but you can stop some existing mobs from spawning in your theme.
+I'm gonna replicate early vanilla mycellium behaviour for the soil, but using podzol textures.
 
-Luckily, I'm now storing `levelType` in the world object.
+```java
+    package com.mojontwins.modloader;
 
-I'm rehashing how spawning lists work. Now you should add your mobs in a special method in your mod - which will be called everytime a level is about to be created, so you can control if you are populating the maps or not.
+    import java.util.Random;
 
-Have to document this urgently.
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.block.Material;
+    import net.minecraft.game.level.World;
+
+    public class BlockPodzol extends ModBlock {
+        public int bottomTextureIndex;
+        public int topTextureIndex;
+        
+        public BlockPodzol(int id) {
+            super(id, Material.ground);
+            this.setTickOnLoad(true);
+        }
+
+        public int getBlockTextureFromSide (int var1) {
+            if (var1 == 0) return this.bottomTextureIndex;
+            if (var1 == 1) return this.topTextureIndex;
+            return this.blockIndexInTexture;        
+        }
+
+         public void updateTick(World world, int x, int y, int z, Random par5Random) {
+            if (world.getBlockLightValue(x, y + 1, z) < 4 && Block.lightOpacity[world.getBlockId(x, y + 1, z)] > 2) {
+                world.setBlockWithNotify(x, y, z, Block.dirt.blockID);
+            } else if (world.getBlockLightValue(x, y + 1, z) >= 9) {
+                for (int i = 0; i < 4; i++) {
+                    int xx = (x + par5Random.nextInt(3)) - 1;
+                    int yy = (y + par5Random.nextInt(5)) - 3;
+                    int zz = (z + par5Random.nextInt(3)) - 1;
+                    int belowBlockID = world.getBlockId(xx, yy + 1, zz);
+
+                    if (world.getBlockId(xx, yy, zz) == Block.dirt.blockID && world.getBlockLightValue(xx, yy + 1, zz) >= 4 && Block.lightOpacity[belowBlockID] <= 2) {
+                        world.setBlockWithNotify(xx, yy, zz, blockID);
+                    }
+                }
+            }
+        }
+
+        public int idDropped(int par1, Random par2Random) {
+            return Block.dirt.idDropped(0, par2Random);
+        }
+    }
+```
+
+and the setup in the mod class:
+
+```java
+    blockPodzol = new BlockPodzol(ModLoader.getBlockId()).setBlockHardness(0.25F).setName("block.podzol");
+    blockPodzol.stepSound = Block.soundGrassFootstep;
+    blockPodzol.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_podzol_size.png");
+    ((BlockPodzol)blockPodzol).topTextureIndex = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_podzol_top.png");
+    ((BlockPodzol)blockPodzol).bottomTextureIndex = Block.dirt.blockIndexInTexture;
+    ModLoader.registerBlock(blockPodzol);
+```
+
+### Giant mushrooms
+
+And now the blocks used to build the giant mushrooms. For the cap blocks, metadata contains the combination of "inner" and "outter" textures in all six faces. Because I won't be reinventing the wheel, I'm using the code in r1.2.5. I'll be even using a simplified `WorldGenGiantMushroom`.  The same block class is used for the trunk, with metadata = 10.
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.util.Random;
+
+    import net.minecraft.game.block.Material;
+
+    public class BlockBigMushroom extends ModBlock {
+        public int mushroomType;
+        
+        public int textureStem;
+        public int textureCap;
+        
+        public BlockBigMushroom(int id, int type) {
+            super(id, Material.wood);
+            mushroomType = type;
+        }
+
+        public int getBlockTextureFromSideAndMetadata(int par1, int par2)
+        {
+            // meta = 10: stem, par > 1: sides
+            if (par2 == 10 && par1 > 1) {
+                return textureStem;
+            }
+
+            // Bottom
+            if (par2 >= 1 && par2 <= 9 && par1 == 1) {
+                return textureCap;
+            }
+
+            // Side 2
+            if (par2 >= 1 && par2 <= 3 && par1 == 2) {
+                return textureCap;
+            }
+
+            // Side 3
+            if (par2 >= 7 && par2 <= 9 && par1 == 3) {
+                return textureCap;
+            }
+
+            // Side 4
+            if ((par2 == 1 || par2 == 4 || par2 == 7) && par1 == 4) {
+                return textureCap;
+            }
+
+            // Side 5
+            if ((par2 == 3 || par2 == 6 || par2 == 9) && par1 == 5) {
+                return textureCap;
+            }
+
+            // Whole
+            if (par2 == 14) {
+                return textureCap;
+            }
+
+            // All trunk
+            if (par2 == 15) {
+                return textureStem;
+            }
+            
+            // Inside
+            return blockIndexInTexture;
+        }
+        
+        public int quantityDropped(Random par1Random) {
+            int i = par1Random.nextInt(10) - 7;
+            if (i < 0) i = 0;
+            return i;
+        }
+
+        public int idDropped(int par1, Random par2Random, int par3) {
+            return blockID;
+        }
+    }
+```
+
+And the setup in the mod class:
+
+```java
+    blockBigMushroomGreen = new BlockBigMushroom(ModLoader.getBlockId(), 1).setBlockHardness(0.25F).setName("block.big_mushroom_green");
+    blockBigMushroomGreen.setBlockLightValue(0.875F);
+    blockBigMushroomGreen.stepSound = Block.soundWoodFootstep;
+    blockBigMushroomGreen.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_mushroom_inside.png");
+    ((BlockBigMushroom)blockBigMushroomGreen).textureCap = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_mushroom_green.png");
+    ((BlockBigMushroom)blockBigMushroomGreen).textureStem = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_mushroom_trunk.png");
+    ModLoader.registerBlock(blockBigMushroomGreen);
+    
+    blockBigMushroomBrown = new BlockBigMushroom(ModLoader.getBlockId(), 0).setBlockHardness(0.25F).setName("block.big_mushroom_brown");
+    blockBigMushroomBrown.stepSound = Block.soundWoodFootstep;
+    blockBigMushroomBrown.blockIndexInTexture = blockBigMushroomGreen.blockIndexInTexture;
+    ((BlockBigMushroom)blockBigMushroomBrown).textureCap = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_mushroom_brown.png");
+    ((BlockBigMushroom)blockBigMushroomBrown).textureStem = ((BlockBigMushroom)blockBigMushroomGreen).textureStem;  
+    ModLoader.registerBlock(blockBigMushroomBrown);
+```
+
+Next: the new fluid. Harms without burning, flows as water. Is yellowish green. No use inside a bottle.
+
+I guess I should make the texture FX first... I might be taking the chance to use an animated texture using a local texture atlas and add this to modLoader. Let's find something in google. Yay.
+
+The animated texture FX should load the texture atlas (16x16 frames stitched vertically) and calculate automaticly the number of frames & setup everything. Maybe get a ticks per frame in the constructor. Something like this:
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.awt.image.BufferedImage;
+    import java.io.InputStream;
+
+    import javax.imageio.ImageIO;
+
+    import net.minecraft.client.renderer.block.TextureFX;
+
+    public class ModTextureAnimated extends TextureFX {
+        private int animationFrames;
+        private int animationCounter;
+        private int ticksPerFrame;
+        private int ticksCounter;
+        private int rawAnimationData [];
+        private byte animationData [][];
+        
+        public ModTextureAnimated(int textureIndex, EnumTextureAtlases textureAtlas, String textureAtlasURI, int ticksPerFrame) {
+            super(textureIndex);
+            this.tileImage = textureAtlas == EnumTextureAtlases.ITEMS ? 1 : 0;
+            this.ticksPerFrame = ticksPerFrame;
+            
+            try {
+                // Load texture
+                InputStream inputStream = this.getClass().getResourceAsStream(textureAtlasURI);
+                BufferedImage bufferedimage = ImageIO.read(inputStream);
+                
+                // Calculate number of frames
+                animationFrames = bufferedimage.getHeight() / 16;
+                
+                // Allocate rawAnimationData & animationData
+                rawAnimationData = new int [256 * animationFrames];
+                animationData = new byte [animationFrames][1024];
+                
+                // Extract pixels from bufferedimage
+                bufferedimage.getRGB(0, 0, bufferedimage.getWidth(), bufferedimage.getHeight(), rawAnimationData, 0, 16);
+                
+                // Load the texture to the `animationData` array in the correct format
+                for (int i = 0; i < animationFrames; i ++) 
+                    for (int j = 0; j < 256; j ++) {
+                        int idx = i * 256 + j;
+                        animationData [i][4 * j + 0] = (byte) (rawAnimationData[idx] >> 16 & 0xff);
+                        animationData [i][4 * j + 1] = (byte) (rawAnimationData[idx] >> 8 & 0xff); 
+                        animationData [i][4 * j + 2] = (byte) (rawAnimationData[idx] & 0xff); 
+                        animationData [i][4 * j + 3] = (byte) (rawAnimationData[idx] >> 24 & 0xff); 
+                    }
+                
+                System.out.println ("ModTextureAnimated " + textureIndex + ", " + textureAtlas + ", textureAtlasURI = " + textureAtlasURI + " (" + animationFrames + " frames)");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        public void onTick () {
+            imageData = animationData [animationCounter];
+            ticksCounter ++;
+            if (ticksPerFrame == ticksCounter) {
+                ticksCounter = 0;           
+                animationCounter ++;
+                if (animationCounter == animationFrames) animationCounter = 0;
+            }
+        }
+    }
+```
+
+Now I have to integrate this in the fashion of `addOverride`, some sort of `addAnimation` which does its magic. As with normal, fixed texture overrides, animations need to be associated to a texture index in one of the atlases, so...
+
+I have to test this fast. Let's add seaweeds. Another plant. Gosh, I can only think of plants.
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.util.Random;
+
+    import net.minecraft.client.physics.AxisAlignedBB;
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.block.Material;
+    import net.minecraft.game.level.World;
+
+    public class BlockSeaWeed extends ModBlock {
+
+        public BlockSeaWeed(int id) {
+            super(id, Material.water);
+            this.setTickOnLoad(true);
+        }
+
+        public boolean canPlaceBlockAt(World world, int x, int y, int z) {
+            return world.getBlockId(x, y, z) == Block.waterStill.blockID 
+                    && world.getBlockId(x, y + 1, z) == Block.waterStill.blockID 
+                    && canThisPlantGrowOnThisBlockID(world.getBlockId(x, y - 1, z));
+        }
+        
+        protected boolean canThisPlantGrowOnThisBlockID(int par1) {
+            return par1 == blockID || par1 == Block.dirt.blockID 
+                    || par1 == Block.sand.blockID
+                    || par1 == Block.stone.blockID;
+        }    
+        
+        public void onNeighborBlockChange(World world, int x, int y, int z, int neighborBlockID) {
+            if (!canBlockStay(world, x, y, z)) {
+                dropBlockAsItem(world, x, y, z, world.getBlockMetadata(x, y, z));
+                world.setBlockWithNotify(x, y, z, Block.waterStill.blockID);
+            }
+        }
+        
+        public void updateTick(World world, int x, int y, int z, Random rand) {
+            if (rand.nextInt (4) == 0) {
+                if (world.getBlockId(x, y + 1, z) == Block.waterStill.blockID && world.getBlockId(x, y + 2, z) != 0) {
+                    world.setBlockWithNotify(x, y + 1, z, blockID);
+                }
+            }
+        }
+        
+        public boolean canBlockStay(World world, int x, int y, int z) {
+            return canThisPlantGrowOnThisBlockID(world.getBlockId(x, y - 1, z));
+        }
+        
+        public AxisAlignedBB getCollisionBoundingBoxFromPool(World par1World, int par2, int par3, int i) {
+            return null;
+        }
+        
+        public boolean isOpaqueCube() {
+            return false;
+        }
+        
+        public boolean renderAsNormalBlock() {
+            return false;
+        }
+        
+        public int getRenderType() {
+            return 1;
+        }
+    }
+```
+
+And we create the new block in the mod class like this:
+
+```java
+    // Seaweeds with animated textures
+    blockSeaWeed = new BlockSeaWeed(ModLoader.getItemId()).setBlockHardness(0.2F).setName("block.sea_weed");
+    blockSeaWeed.blockIndexInTexture = ModLoader.addAnimation(EnumTextureAtlases.TERRAIN, "textures/block_seaweed.png", 1);
+    ModLoader.registerBlock(blockSeaWeed);      
+```
+
+Finally, we generate some. I'm adding a new method to `World` which will come up VERY handy!
+
+```java
+    public int getSeaBed(int x, int z) {
+        // Start at water level downwards
+        int y = this.waterLevel;
+        
+        if (this.getBlockId(x, y, z) != Block.waterStill.blockID) return 0;
+        
+        while (y > 0) {
+            y --;
+            if (this.getBlockId(x, y, z) != Block.waterStill.blockID) break;
+        }
+        
+        return y;
+    }
+```
+
+As I won't be able to test this until I get home, let's document the bit and add the example.
+
+Before I add the new fluid, I've ported the world generator for big mushrooms, adapted from r1.2.5 to my codebase:
+
+```java
+    package com.mojontwins.modloader;
+
+    import java.util.Random;
+
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.level.World;
+
+    // Adapted from r1.2.5
+
+    public class WorldGenBigMushroom {
+        private int mushroomType; // 0 for brown, 1 for green.
+
+        public WorldGenBigMushroom(int mushroomType) {
+            this.mushroomType = mushroomType;
+        }
+
+        public WorldGenBigMushroom() {
+            this (0);
+        }
+
+        public boolean generate(World world, Random rand, int x, int y, int z)
+        {
+            int mushroomBlockID = mushroomType == 1 ? mod_PoisonLand.blockBigMushroomGreen.blockID : mod_PoisonLand.blockBigMushroomBrown.blockID;
+
+            int j = rand.nextInt(3) + 4;
+
+            if (y < 1 || y + j + 1 >= world.height) {
+                return false;
+            }
+
+            // Enough room ?
+
+            for (int yy = y; yy <= y + 1 + j; yy++) {
+                byte byte0 = 3;
+
+                if (yy == y) {
+                    byte0 = 0;
+                }
+
+                for (int xx = x - byte0; xx <= x + byte0; xx++) {
+                    for (int zz = z - byte0; zz <= z + byte0; zz++) {
+                        if (yy >= 0 && yy < world.height) {
+                            int blockID = world.getBlockId(xx, yy, zz);
+
+                            if (blockID != 0 && blockID != Block.leaves.blockID) {
+                                return false;
+                            }
+                        } else {
+                            return false;
+                        }
+                    }
+                }
+            }
+
+            // Dirt, grass or podzol below?
+            int blockIDbelow = world.getBlockId(x, y - 1, z);
+
+            if (blockIDbelow != Block.dirt.blockID && blockIDbelow != Block.grass.blockID && blockIDbelow != mod_PoisonLand.blockPodzol.blockID) {
+                return false;
+            }
+
+            // Change for dirt
+            world.setBlock(x, y - 1, z, Block.dirt.blockID);
+            world.setBlockMetadata(x, y - 1, z, 0);
+            
+            // Draw the cap
+            int i1 = y + j;
+
+            if (mushroomType == 1) {
+                i1 = (y + j) - 3;
+            }
+
+            for (int k1 = i1; k1 <= y + j; k1++) {
+                int j2 = 1;
+
+                if (k1 < y + j) {
+                    j2++;
+                }
+
+                if (mushroomType == 0) {
+                    j2 = 3;
+                }
+
+                for (int i3 = x - j2; i3 <= x + j2; i3++) {
+                    for (int j3 = z - j2; j3 <= z + j2; j3++) {
+                        int k3 = 5;
+
+                        if (i3 == x - j2) {
+                            k3--;
+                        }
+
+                        if (i3 == x + j2) {
+                            k3++;
+                        }
+
+                        if (j3 == z - j2) {
+                            k3 -= 3;
+                        }
+
+                        if (j3 == z + j2) {
+                            k3 += 3;
+                        }
+
+                        if (mushroomType == 0 || k1 < y + j) {
+                            if ((i3 == x - j2 || i3 == x + j2) && (j3 == z - j2 || j3 == z + j2)) {
+                                continue;
+                            }
+
+                            if ((i3 == x - (j2 - 1) && j3 == z - j2) || (i3 == x - j2 && j3 == z - (j2 - 1))) {
+                                k3 = 1;
+                            }
+
+                            if ((i3 == x + (j2 - 1) && j3 == z - j2) || (i3 == x + j2 && j3 == z - (j2 - 1))) {
+                                k3 = 3;
+                            }
+
+                            if ((i3 == x - (j2 - 1) && j3 == z + j2) || (i3 == x - j2 && j3 == z + (j2 - 1))) {
+                                k3 = 7;
+                            }
+
+                            if ((i3 == x + (j2 - 1) && j3 == z + j2) || (i3 == x + j2 && j3 == z + (j2 - 1))) {
+                                k3 = 9;
+                            }
+                        }
+
+                        if (k3 == 5 && k1 < y + j) {
+                            k3 = 0;
+                        }
+
+                        if ((k3 != 0 || y >= (y + j) - 1) && !Block.opaqueCubeLookup[world.getBlockId(i3, k1, j3)]) {
+                            world.setBlockWithNotify(i3, k1, j3, mushroomBlockID);
+                            world.setBlockMetadata(i3, k1, j3, k3);
+                        }
+                    }
+                }
+            }
+
+            // Trunk
+            for (int l1 = 0; l1 < j; l1++) {
+                int k2 = world.getBlockId(x, y + l1, z);
+
+                if (!Block.opaqueCubeLookup[k2]) {
+                    world.setBlockWithNotify(x, y + l1, z, mushroomBlockID);
+                    world.setBlockMetadata(x, y + l1, z, 10);
+                }
+            }
+
+            return true;
+        }
+    }
+```
+
+### Acid ocean
+
+Ok - now on to Indev fluids again. Lava seems to be more simple than water. Nah, in fact is the same. On Indev you need three kinds of blocks: source, still and flowing using classes `BlockFluidSource`, `BlockStationary` and `BlockFlowing`, respectively. These methods have the hardcoded stuff needed for water and lava, so if I want to add my own fluid I'll have to replicate the entire classes.
+
+`lavaSource` and `waterSource` are used in `World.fluidFlowCheck`. If I add new fluids I need a hook in there, so maybe it would be a good idea to make custom fluids a thing in ModLoader.
+
+`*Still` and `*Moving` also appear in `ItemBlock.onItemUse` in the check which allows you to place new blocks in the world, so this shit is getting more and more complicated.
+
+Appart from that that's apparently it, so let's thing on a new custom fluid system which nobody will use but which I can extract dopamine from.
+
+I can be usin a `TreeMap` to store a list of fluids. Each element in the list would be a `HashMap` containing three elements "source", "still" and "moving", pointing to the right block object. So creating your fluid would need registering it on this map. A couple of hooks to modloader would use this map to provide the info the engine needs. Now let's examine the block classes.
+
+* `BlockFluidSource` - it seems that I could just use this, directly. The constructor is `BlockFluidSource (blockID, movingFluidBlockID)`, with `movingFluidBlockID` the ID of the fluid it represents, in `moving` form.
+
+* `BlockFlowing` extends `BlockFluid` has a lot of `lava` and `water` hardcoded shit:
+
+    *  `BlockFlowing`: `blockIndexInTexture` is hardcoded. Setting `movingId` and `stillId` assumes sequantial IDs. Water flowing to lava to make stone is hardcoded. Water extinguishing fires is hardcoded. Lava spreading fire is hardcoded. Selecting the renderBlockPass (0 for solid, 1 for translucid) is hardcoded.
+    *  `BlockFluid`: `blockIndexInTexture` is hardcoded. Setting `movingId` and `stillId` assumes sequantial IDs - duplicated code, also :-/. Clean up the constructor in `blockFlowing` and everything is set up here! `getBlockTextureFromSide` can be overriden. 
+
+A complete rehash of `BlockFlowing` and `BlockFluid` is needed if I want to reuse them. A number of properties which `lava` and `water` preset and use them for the checks rather than the actual material:
+
+* `blockIndexInTexture` calculation (duplicated in `BlockFlowing` and the super class `BlockFluid`).
+* `stoneComponentLava` and `stoneComponentWater`, booleans.
+* `exitinguishesFire`, boolean.
+* `setsOnFire`, boolean.
+* `renderBlockPass`, integer 0 or 1.
+
+I can try and change one at a time and see if I don't break this completely :)
+
+Or as `Material.lava` and `Material.water` are used most of the time, I could just leave those in and fix only the harcoded references to block IDs. That way you can create your own fluids of `Material.lava` and `Material.water` and if you need you can override the methods you need.
+
+* In `BlockFlowing.extinguishFireLava` you have this:
+
+```java
+    if (var0.getBlockId(var1, var2, var3) != Block.lavaMoving.blockID && var0.getBlockId(var1, var2, var3) != Block.lavaStill.blockID)
+```
+
+which is in fact checking for lava so you could just:
+
+```java
+    if (Block.blocksList[var0.getBlockId(var1, var2, var3)].material == Material.lava)
+```
+
+So with this simple fix and using `Material`s you can do stuff. 
+
+* `BlockStationary` is fine as it is.
+
+So to add your new fluid you would just need a class extending `BlockFlowing`, plus an instance of `BlockFluidSource` and `BlockStationary`. As for the name needed for the future registry for IDs, I could just automate things and if a name attribute is not present in the class I could just use `.getClass ().toString ()` as the name tag.
+
+Yup, but what happens with collision? This is also hardcoded in `Entity`:
+
+```java
+    if (this.handleLavaMovement()) {
+        this.attackEntityFrom((Entity)null, 10);
+        this.fire = 600;
+    }
+```
+
+I could leave this as is but for some reason I don't like the idea of not being able to control this. Maybe another hook? Like
+
+```java
+    if (ModLoader.handleCustomFluidMovement (this.boundingBox.expand(0.0F, -0.4F, 0.0F))) {
+    } else {
+        this.attackEntityFrom((Entity)null, 10);
+        this.fire = 600;        
+    }
+```
+
+`this.boundingBox.expand(0.0F, -0.4F, 0.0F)` returns an `AxisAlignedBB`. Do your shit and return false or whatever. In `handleCustomMovement` I could call public final boolean handleMaterialAcceleration(AxisAlignedBB var1, Material var2) {} and then override. Have my HashMap describing fluids include a "damageValue" (which can be negative!) and "fireTicks" which can be 0.
+
+Phew. 
+
+Let's this rest for a bit.
+
+What would be the best way to index our TreeMap? How should it be accessed? I think that adding it twice, indexing by the "still" id and by the "flowing" id would be the best solution.
+
+Anyways, I implemented it:
+
+```java
+    // Blocks used for the new fluid
+    
+    int blockAcidFlowingID = ModLoader.getBlockId();
+    int blockAcidStillID = ModLoader.getBlockId();
+    
+    blockAcidFlowing = (BlockAcidFlowing) new BlockAcidFlowing(blockAcidFlowingID, blockAcidStillID).setName("block.poison_flowing");
+    blockAcidFlowing.blockIndexInTexture = ModLoader.addAnimation(EnumTextureAtlases.TERRAIN, "textures/block_acidwater.png", 1);
+    ModLoader.registerBlock(blockAcidFlowing);
+    
+    blockAcidStill = (BlockStationary) new BlockStationary(blockAcidFlowingID, blockAcidStillID, Material.water).setName("block.poison_still");
+    blockAcidStill.blockIndexInTexture = blockAcidFlowing.blockIndexInTexture;
+    ModLoader.registerBlock(blockAcidStill);
+    
+    blockAcidSource = (BlockFluidSource) new BlockFluidSource(ModLoader.getBlockId(), blockAcidFlowingID).setName("block.poison_source");
+    blockAcidSource.material = Material.water;
+    blockAcidSource.blockIndexInTexture = blockAcidFlowing.blockIndexInTexture;
+    ModLoader.registerBlock(blockAcidFlowing);
+    
+    // Register the new fluid
+    
+    ModLoader.registerFluid(blockAcidSource, blockAcidStill, blockAcidFlowing, 1, 0);
+```
+
+The level theme is almost finished (at least on its first incarnation):
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.level.World;
+    import net.minecraft.game.level.generator.LevelGenerator;
+
+    public class ThemePoisonLand extends ModLevelTheme {
+        public int waterLevelAdjust = 2; 
+        
+        public ThemePoisonLand(String themeName) {
+            super(themeName);
+        }
+
+        public double adjustFloorLevel (LevelGenerator levelGenerator, double floorLevel) {
+            return floorLevel > 8.0F ? floorLevel + 12 : (floorLevel < 0.0F ? floorLevel * 2 : floorLevel);
+        }
+
+        public int getSoilingBlockID (LevelGenerator levelGenerator, int y, int floorLevel, int fillLevel, int islandBottomLevel) {
+            int blockID = 0;
+            
+            if (y == floorLevel) {
+                blockID = mod_PoisonLand.blockPodzol.blockID;
+            }
+            
+            if (y < floorLevel) {
+                blockID = Block.dirt.blockID;
+            }
+
+            if (y <= fillLevel) {
+                blockID = Block.stone.blockID;
+            }
+
+            if (levelGenerator.floatingGen && y < islandBottomLevel) {
+                blockID = 0;
+            }
+            
+            return blockID;
+        }
+        
+        public int getWateringBlockID (LevelGenerator levelGenerator) {
+            return mod_PoisonLand.blockAcidStill.blockID;
+        }
+        
+        public void setVisuals (LevelGenerator levelGenerator, World world) {
+            world.skyColor = 0x0B0C33;
+            world.fogColor = 0x3AB14E;
+            world.cloudColor = 0x4D4FA0;
+            world.skylightSubtracted = 6;
+            world.skyBrightness = 7;
+            world.defaultFluid = mod_PoisonLand.blockAcidFlowing.blockID;
+            world.groundLevel = world.waterLevel - 2;
+        }   
+        
+        public boolean overridePlanting (LevelGenerator levelGenerator, World world) {
+            levelGenerator.populateFlowersAndMushrooms(world, Block.mushroomBrown, 500);
+            
+            int totalBlocks = world.width * world.length * world.height;
+            
+            // Spawn big mushrooms
+            int bigMushrooms = totalBlocks / 5000;
+            for (int i = 0; i < bigMushrooms; i ++) {
+                int x = levelGenerator.rand.nextInt(world.width);
+                int z = levelGenerator.rand.nextInt(world.length);
+                int y = world.getHighestGround(x, z) + 1;
+                if (y < world.waterLevel + 16) {
+                    (new WorldGenBigMushroom (levelGenerator.rand.nextInt(2))).generate(world, levelGenerator.rand, x,  y,  z);
+                }
+            }
+            
+            // Spawn trees on high mesas
+            int trees = totalBlocks / 10000;
+
+            for(int i = 0; i < trees; ++i) {
+                int x0 = levelGenerator.rand.nextInt(world.width);
+                int z0 = levelGenerator.rand.nextInt(world.length);
+                int y0 = world.getHighestGround(x0, z0);
+
+                int x = x0;
+                int y = y0;
+                int z = z0;
+
+                if (y0 > world.waterLevel + 16) for(int j = 0; j < 5; ++j) {
+                    
+                    x += levelGenerator.rand.nextInt(12) - levelGenerator.rand.nextInt(12);
+                    z += levelGenerator.rand.nextInt(12) - levelGenerator.rand.nextInt(12);
+                    
+                   if (world.getBlockId(x, y, z) != 0) {
+                        world.setBlock(x, y, z, Block.dirt.blockID);
+                        world.growTrees(x, y + 1, z);
+                    }
+                }
+            }
+            
+            return true;
+        }
+    }
+```
+
+### Bottles
+
+Bottles are items which can be filled with water, acid or poison. I'll be adding a new `ItemBottle` class which can be instantiated with `contents`, just like I implemented the bucket before. Bottles are stackable so it won't be as simple, but not very complicated. I'll be implementing the "fill with water" logic first, then I'll figure out how to make a throwable bottle (which will be a custom entity). So this is our first version: Bottle can only be filled.
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.client.physics.MovingObjectPosition;
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.entity.player.EntityPlayer;
+    import net.minecraft.game.item.ItemStack;
+    import net.minecraft.game.level.World;
+
+    public class ItemBottle extends ModItem {
+        // What's inside the bottle?
+        int contents; 
+        
+        public ItemBottle(int var1, int contents) {
+            super(var1);
+            this.contents = contents;
+            this.maxStackSize = 1;
+        }
+
+        public ItemStack onItemRightClick(ItemStack itemStack, World world, EntityPlayer entityPlayer) {
+            
+            // The empty bucket can be filled.
+            
+            if (this.contents == 0) {
+                // First we detect if we hit water
+                MovingObjectPosition movingobjectposition = getMovingObjectPositionFromPlayer(world, entityPlayer, true);
+        
+                if (movingobjectposition == null) {
+                    return itemStack;
+                }
+        
+                if (movingobjectposition.typeOfHit == 0) {
+                    int x = movingobjectposition.blockX;
+                    int y = movingobjectposition.blockY;
+                    int z = movingobjectposition.blockZ;
+
+                    int blockID = world.getBlockId(x, y, z);
+        
+                    if (blockID == Block.waterStill.blockID) {
+                        world.playSoundAtPlayer((float)x + 0.5F, (float)y + 0.5F, (float)z + 0.5F, "random.splash", world.random.nextFloat() * 0.25F + 0.75F,  world.random.nextFloat() + 0.5F);
+                        
+                        // Substitute the hit block with air
+                        world.setBlockWithNotify(x, y, z, 0);
+                        
+                        // Replace this item with a filled bottle
+                        return new ItemStack (mod_PoisonLand.itemBottleWater);
+                    } else if (blockID == mod_PoisonLand.blockAcidStill.blockID ) {
+                        world.playSoundAtPlayer((float)x + 0.5F, (float)y + 0.5F, (float)z + 0.5F, "random.splash", world.random.nextFloat() * 0.25F + 0.75F,  world.random.nextFloat() + 0.5F);
+                        
+                        // Substitute the hit block with air
+                        world.setBlockWithNotify(x, y, z, 0);
+                        
+                        // Replace this item with a filled bottle
+                        return new ItemStack (mod_PoisonLand.itemBottleAcid);                   
+                    }
+                }
+            }
+
+            return itemStack;
+        }   
+    }
+```
+
+### Trowing bottles.
+
+I guess I can take the code for arrows and replicate it somewhat. I'm more interested on what to do with the renderer. What does r1.2.5 do? Also, maybe arrows are TOO complicated for what I need? I don't need states nor recollection. I just need to throw a bottle which breaks on collision and maybe adds a status effect.
+
+`EntityPotion` in r1.2.5 is not yet 100% deobfuscated, but I think I can work it out. It extends `EntityThrowable`, which is NOT a luxury I have in Indev. So whether I'm thinking on implementing a `ModEntityThrowable` which I can reuse.
+
+So I'll pick stuff from it for my own, simple, Indev style `ModEntityThrowableSimple`.
+
+The idea is extending minimally this class to create your own throwables, as in this:
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.client.physics.MovingObjectPosition;
+    import net.minecraft.game.entity.EntityLiving;
+    import net.minecraft.game.item.Item;
+    import net.minecraft.game.level.World;
+
+    public class EntityThrowableBottle extends ModEntitlyThrowableSimple {
+        public Item itemBottle;
+
+        public EntityThrowableBottle(World world, EntityLiving owner, float speedMultiplier, Item itemBottle) {
+            super(world, owner, speedMultiplier);
+            this.itemBottle = itemBottle;
+        }
+
+        protected String getEntityString() {
+            return "throwable_bottle";
+        }
+        
+        public void onImpact(MovingObjectPosition movingObjectPosition) {
+            // TODO: Do stuff depending on contents.
+        }
+    }
+```
+
+We need a renderer. I'll be adding a `ModRenderThrowableSimple` we can use and reuse, like this:
+
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.entity.Entity;
+
+    public class RenderThrowableBottle extends ModRenderThrowableSimple {
+        public RenderThrowableBottle() {
+        }
+        
+        /*
+         * `ModRenderThrowableSimple` calls this method to get the icon index to draw.
+         */
+        public int getItemIconIndex(Entity entity) {
+            return ((EntityThrowableBottle) entity).itemBottle.getIconIndex();
+        }
+    }
+```
+
+So I guess this *should* suffice (in our mod class):
+
+```java
+    // Associate a renderer to our EntityThrowableBottles:
+
+    ModLoader.addEntityRenderer(EntityThrowableBottle.class, new RenderThrowableBottle());
+```
+
+Now on to business - actually throwing the bottle when right clicking - creating an entity and emptying the `ItemStack`.
+
+Am I being too smart?
+
+```java
+    public ItemStack onItemRightClick(ItemStack itemStack, World world, EntityPlayer entityPlayer) {        
+        
+        if (this.contents == 0) {
+
+            [...]
+
+        } else {
+            world.playSoundAtEntity(entityPlayer, "random.bow", 0.5F, 0.4F / (Item.rand.nextFloat() * 0.4F + 0.8F));
+            world.spawnEntityInWorld(new EntityThrowableBottle(world, entityPlayer, 0.5F + Item.rand.nextFloat() * 0.5F, itemStack.getItem()));
+            itemStack.stackSize--;
+        }
+
+        return itemStack;
+    }   
+```
+
+If this works, next thing would be actually doing something to entities. If the bottle is empty or full of water we could strike for a couple of hearts (damage 4). If it's full of acid it could be damage 10 and if it's full of posion it's damage 100, in advance for the almighty diamond skeletons I'm planning to add and which would be kinda the bosses for this world theme (still thinking of them). One could play to get, I dunno, 3 special items dropped by such mobs, or something like that.
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.client.physics.MovingObjectPosition;
+    import net.minecraft.game.entity.EntityLiving;
+    import net.minecraft.game.item.Item;
+    import net.minecraft.game.level.World;
+
+    public class EntityThrowableBottle extends ModEntitlyThrowableSimple {
+        public Item itemBottle;
+
+        public EntityThrowableBottle(World world, EntityLiving owner, float speedMultiplier, Item itemBottle) {
+            super(world, owner, speedMultiplier);
+            this.itemBottle = itemBottle;
+        }
+
+        protected String getEntityString() {
+            return "throwable_bottle";
+        }
+        
+        public void onImpact(MovingObjectPosition movingObjectPosition) {
+            // Glass
+            this.worldObj.playSoundAtPlayer(this.posX, this.posY, this.posZ, "random.glass", 1.0F, 1.0F);
+            
+            int itemID = itemBottle.shiftedIndex;
+            int damage = 0;
+            
+            if (itemID == mod_PoisonLand.itemBottleEmpty.shiftedIndex) {
+                damage = 2;
+            } else if (itemID == mod_PoisonLand.itemBottleWater.shiftedIndex) {
+                damage = 4;
+            } else if (itemID == mod_PoisonLand.itemBottleAcid.shiftedIndex) {
+                damage = 10;
+            } else if (itemID == mod_PoisonLand.itemBottlePoison.shiftedIndex) {
+                damage = 100;
+            }
+            
+            // Hit entity
+            ((EntityLiving) movingObjectPosition.entityHit).attackEntityFrom(null, damage);
+        }
+    }
+```
+
+Oh - I got it. I'll add a special brand of skeletons which are just skeletons but drop skeleton heads (with a chance).  Then you can summon diamond skeletons by placing two diamond blocks on top of each other and a skeleton head on top. I'll have to borrow a block renederer for skeleton heads (which will be blocks). It's a 1.4.2 feature, maybe too complicated to port. Maybe I could just make my own renderer. Size would be 0.5Fx0.5Fx0.5F, bottom-centered (at 0.25F, 0, 0.25F). Place using the angle trick, store in metadata. And that's it. Comes next, for example.
+
+
 
