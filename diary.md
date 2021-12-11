@@ -22,11 +22,13 @@ This is the roadmap which will be constantly changing.
 So I don't forget:
 
 * [ ] I will later reimplement the Block ID system using some kind of registry that gets saved alognside worlds so IDs are reassigned when loading worlds.
-* [ ] Implement animations with local atlases via custom Texture FX
+* [x] Implement animations with local atlases via custom Texture FX
 * [ ] Custom fuel
-* [ ] Engine fix - Prevent eating food when right-clicking tile entities!
-* [ ] Engine fix - Correct bug that makes the indev house not spawn.
+* [x] Engine fix - Prevent eating food when right-clicking tile entities!
+* [x] Engine fix - Correct bug that makes the indev house not spawn.
+* [x] Engine fix - Arrows less harmful.
 * [ ] Engine addition - Shift to crouch - do not fall from ledges.
+* [ ] Engine addition - Right click with sword to cover up.
 
 # 1. Creating a basic ModBase class
 
@@ -5065,24 +5067,17 @@ Bottles are items which can be filled with water, acid or poison. I'll be adding
         }
 
         public ItemStack onItemRightClick(ItemStack itemStack, World world, EntityPlayer entityPlayer) {
-            
-            // The empty bucket can be filled.
-            
-            if (this.contents == 0) {
-                // First we detect if we hit water
-                MovingObjectPosition movingobjectposition = getMovingObjectPositionFromPlayer(world, entityPlayer, true);
-        
-                if (movingobjectposition == null) {
-                    return itemStack;
-                }
-        
-                if (movingobjectposition.typeOfHit == 0) {
-                    int x = movingobjectposition.blockX;
-                    int y = movingobjectposition.blockY;
-                    int z = movingobjectposition.blockZ;
+            // First we detect if we hit something
+            MovingObjectPosition movingobjectposition = getMovingObjectPositionFromPlayer(world, entityPlayer, true);
 
-                    int blockID = world.getBlockId(x, y, z);
-        
+            if (movingobjectposition != null && movingobjectposition.typeOfHit == 0) {
+                int x = movingobjectposition.blockX;
+                int y = movingobjectposition.blockY;
+                int z = movingobjectposition.blockZ;
+
+                int blockID = world.getBlockId(x, y, z);
+
+                if (this.contents == 0) {
                     if (blockID == Block.waterStill.blockID) {
                         world.playSoundAtPlayer((float)x + 0.5F, (float)y + 0.5F, (float)z + 0.5F, "random.splash", world.random.nextFloat() * 0.25F + 0.75F,  world.random.nextFloat() + 0.5F);
                         
@@ -5091,7 +5086,9 @@ Bottles are items which can be filled with water, acid or poison. I'll be adding
                         
                         // Replace this item with a filled bottle
                         return new ItemStack (mod_PoisonLand.itemBottleWater);
-                    } else if (blockID == mod_PoisonLand.blockAcidStill.blockID ) {
+                    } 
+
+                    if (blockID == mod_PoisonLand.blockAcidStill.blockID ) {
                         world.playSoundAtPlayer((float)x + 0.5F, (float)y + 0.5F, (float)z + 0.5F, "random.splash", world.random.nextFloat() * 0.25F + 0.75F,  world.random.nextFloat() + 0.5F);
                         
                         // Substitute the hit block with air
@@ -5178,20 +5175,48 @@ Now on to business - actually throwing the bottle when right clicking - creating
 Am I being too smart?
 
 ```java
-    public ItemStack onItemRightClick(ItemStack itemStack, World world, EntityPlayer entityPlayer) {        
-        
-        if (this.contents == 0) {
+    public ItemStack onItemRightClick(ItemStack itemStack, World world, EntityPlayer entityPlayer) {
+        // First we detect if we hit something
+        MovingObjectPosition movingobjectposition = getMovingObjectPositionFromPlayer(world, entityPlayer, true);
 
-            [...]
+        if (movingobjectposition != null && movingobjectposition.typeOfHit == 0) {
+            int x = movingobjectposition.blockX;
+            int y = movingobjectposition.blockY;
+            int z = movingobjectposition.blockZ;
 
-        } else {
-            world.playSoundAtEntity(entityPlayer, "random.bow", 0.5F, 0.4F / (Item.rand.nextFloat() * 0.4F + 0.8F));
-            world.spawnEntityInWorld(new EntityThrowableBottle(world, entityPlayer, 0.5F + Item.rand.nextFloat() * 0.5F, itemStack.getItem()));
-            itemStack.stackSize--;
+            int blockID = world.getBlockId(x, y, z);
+
+            if (this.contents == 0) {
+                if (blockID == Block.waterStill.blockID) {
+                    world.playSoundAtPlayer((float)x + 0.5F, (float)y + 0.5F, (float)z + 0.5F, "random.splash", world.random.nextFloat() * 0.25F + 0.75F,  world.random.nextFloat() + 0.5F);
+                    
+                    // Substitute the hit block with air
+                    world.setBlockWithNotify(x, y, z, 0);
+                    
+                    // Replace this item with a filled bottle
+                    return new ItemStack (mod_PoisonLand.itemBottleWater);
+                } 
+
+                if (blockID == mod_PoisonLand.blockAcidStill.blockID ) {
+                    world.playSoundAtPlayer((float)x + 0.5F, (float)y + 0.5F, (float)z + 0.5F, "random.splash", world.random.nextFloat() * 0.25F + 0.75F,  world.random.nextFloat() + 0.5F);
+                    
+                    // Substitute the hit block with air
+                    world.setBlockWithNotify(x, y, z, 0);
+                    
+                    // Replace this item with a filled bottle
+                    return new ItemStack (mod_PoisonLand.itemBottleAcid);                   
+                }
+            }
         }
+        
+        // If we reach this point: throw the bottle!
 
+        world.playSoundAtEntity(entityPlayer, "random.bow", 0.5F, 0.4F / (Item.rand.nextFloat() * 0.4F + 0.8F));
+        world.spawnEntityInWorld(new EntityThrowableBottle(world, entityPlayer, 0.5F + Item.rand.nextFloat() * 0.5F, itemStack.getItem()));
+        itemStack.stackSize--;
+    
         return itemStack;
-    }   
+    }     
 ```
 
 If this works, next thing would be actually doing something to entities. If the bottle is empty or full of water we could strike for a couple of hearts (damage 4). If it's full of acid it could be damage 10 and if it's full of posion it's damage 100, in advance for the almighty diamond skeletons I'm planning to add and which would be kinda the bosses for this world theme (still thinking of them). One could play to get, I dunno, 3 special items dropped by such mobs, or something like that.
@@ -5200,6 +5225,7 @@ If this works, next thing would be actually doing something to entities. If the 
     package com.mojontwins.modloader;
 
     import net.minecraft.client.physics.MovingObjectPosition;
+    import net.minecraft.game.entity.Entity;
     import net.minecraft.game.entity.EntityLiving;
     import net.minecraft.game.item.Item;
     import net.minecraft.game.level.World;
@@ -5233,13 +5259,75 @@ If this works, next thing would be actually doing something to entities. If the 
                 damage = 100;
             }
             
+            // Splash
+            if (itemID != mod_PoisonLand.itemBottleEmpty.shiftedIndex) {
+                int splashes = 4 + this.rand.nextInt(4);
+                for (int i = 0; i < splashes; i++) {
+                    this.worldObj.spawnParticle("splash", this.posX + rand.nextFloat()-0.5F, this.posY + rand.nextFloat()-0.5F, this.posZ + rand.nextFloat()-0.5F, 0.0F, 0.0F, 0.0F);
+                }
+            }
+            
             // Hit entity
-            ((EntityLiving) movingObjectPosition.entityHit).attackEntityFrom(null, damage);
+            Entity entity = movingObjectPosition.entityHit;
+            if (entity != null) entity.attackEntityFrom(null, damage);
         }
     }
 ```
 
-Oh - I got it. I'll add a special brand of skeletons which are just skeletons but drop skeleton heads (with a chance).  Then you can summon diamond skeletons by placing two diamond blocks on top of each other and a skeleton head on top. I'll have to borrow a block renederer for skeleton heads (which will be blocks). It's a 1.4.2 feature, maybe too complicated to port. Maybe I could just make my own renderer. Size would be 0.5Fx0.5Fx0.5F, bottom-centered (at 0.25F, 0, 0.25F). Place using the angle trick, store in metadata. And that's it. Comes next, for example.
+Oh - I got it. I'll add a special brand of skeletons which are just skeletons but drop skeleton heads (with a chance).  Then you can summon diamond skeletons by placing two diamond blocks on top of each other and a skeleton head on top. I'll have to borrow a block renederer for skeleton heads (which will be blocks). It's a 1.4.2 feature, will be too complicated to port. I could just make my own renderer. Size would be 0.5Fx0.5Fx0.5F, bottom-centered (at 0.25F, 0, 0.25F). Place using the angle trick, store in metadata. And that's it. Comes next, for example.
 
+I keep delaying the GUI riden tile entity to make poison.
 
+After some fiddling, I managed to make the custom block renderer by hand, complete with rotations. I am also in the process of making a converter which takes the JSONs https://www.blockbench.net/ writes and turns them into java classes I can use with Indev ModLoader. As it is a bit buggy (have to test it and make sure it rotates all the textures properly!) I'm delaying its documentation.
 
+Ok, so now that I have a block for the distiller, it is time to create the associated GUI and tile entity.
+
+Nope, I can't design the GUI rn, so let's move on to another thing I have to do: the Skeleton replica which drops its head by chance 1:8 (for example). I'll use a slightly modified skin for it, just to make it a bit more interesting. As we did with husks, just inherit from the base class and refine:
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.game.entity.monster.EntitySkeleton;
+    import net.minecraft.game.item.Item;
+    import net.minecraft.game.level.World;
+
+    public class EntityPoisonSkeleton extends EntitySkeleton {
+
+        public EntityPoisonSkeleton(World var1) {
+            super(var1);
+            this.texture = "/mob/poison_skeleton.png";
+        }
+
+        protected String getEntityString() {
+            return "PoisonSkeleton";
+        }
+        
+        protected int scoreValue() {
+            return (rand.nextInt(8) == 0) ? mod_PoisonLand.blockSkullHeadRenderID : Item.arrow.shiftedIndex;
+        }    
+    }
+```
+
+Register in our mod class:
+
+```java
+    entityPoisonSkeletonMobID = ModLoader.getNewMobID();
+    ModLoader.addEntityRenderer(EntityPoisonSkeleton.class, new RenderLiving(new ModelSkeleton (), 0.5F));
+```
+
+And replace skeletons with this:
+
+```java
+    public void populateMobsHashMap (int levelType) {   
+        // Add poison skeletons instead of skeletons
+        if (levelType == poisonLandThemeID) {
+            System.out.println ("Replacing skeletons with poison skeletons!");
+            ModLoader.removeMonsterEntity(EntitySkeleton.class);
+            ModLoader.registerMonsterEntity (entityPoisonSkeletonMobID, EntityPoisonSkeleton.class);
+        }
+    }
+```
+
+Now on to the effect of placing the skull on top of two diamond blocks.
+
+BEWARE! I just made `Minecraft.effectsRenderer` static! Test to check if I have broken something!

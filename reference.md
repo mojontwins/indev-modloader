@@ -1189,7 +1189,7 @@ To add a new mod you need at least one new class: the one which describes your `
 * Configure a renderer for your Entity:
 
 ```java
-    ModLoader.addEntityRenderer(EntitTest.class, new RenderTest(new ModelTest (), 0.5F));
+    ModLoader.addEntityRenderer(EntityTest.class, new RenderTest(new ModelTest (), 0.5F));
 ```
 
 * Register your entity. You have to do this in a special method in your mod class called `populateMobsHashMap`. This method is called to let you populate the default monster and animal lists (or even modify them!) after the world theme (normal, hell, paradise, woods, or your own) has been selected.
@@ -1233,6 +1233,20 @@ To understand these hooks better, it's very useful to understand how Indev works
 2.- Then it iterates a number of times finding a good spot. It selects a coordinate (x, y, z) in the world. `spawnerSelectMonsterBasedOnPosition` is called then. It is pased the selected ID again, a reference to the world, and the coordinates. Based on the coordinates and/or what's in the world, *You can modify this number and return it to change the selected entity*.
 3.- Finally, it creates a new object of the correct `Entity` class based on the selected entity ID. If the ID is out of bounds (i.e. not registered), it will fail and call `spawnMonster`. If the passed `entityID` is satisfactory, *you* must create the entity object using your custom entity class and the `world` parameter you get.
 4.- Then, the `getCanSpawnHere` method of your entity class will be called, and if that returns true and other conditions are met, the entity is spawned.
+
+## Remove existing monster or animal entries from the list
+
+In case you don't want a certain type of mob to appear in your theme / mod, just remove it from within your mod's `populateMobsHashMap`:
+
+```java
+    removeMonsterEntity(EntitySkeleton.class);
+```
+
+or 
+
+```java
+    removeAnimalEntity(EntityPig.class);
+```
 
 ## Example: The Husk
 
