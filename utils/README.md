@@ -8,15 +8,15 @@ Utilites are command line based. to execute XXX.jar, just
 
 ## Json2RenderBlocks.jar
 
-This utility takes the JSON output of Workbench and generates a .java class you can use with your classic mod to add custom block renderers. By default it generate classes that can be used with *Indev Modloader*, but you can customize the output somehow.
+This utility takes the JSON output of [Blockbench](https://www.blockbench.net/) and generates a .java class you can use with your classic mod to add custom block renderers. By default it generate classes that can be used with *Indev Modloader*, but you can customize the output somehow.
 
 From this:
 
-![https://github.com/mojontwins/indev-modloader/blob/main/images/blockbench_input.png?raw=true]
+![Blockbench](https://github.com/mojontwins/indev-modloader/blob/main/images/blockbench_input.png?raw=true)
 
 To this:
 
-![https://github.com/mojontwins/indev-modloader/blob/main/images/custom_models.png?raw=true]
+![Custom render](https://github.com/mojontwins/indev-modloader/blob/main/images/custom_models.png?raw=true)
 
 ```
 	$ java -jar \Git\indev-modloader\utils\Json2RenderBlocks.jar
