@@ -4,8 +4,6 @@ import net.minecraft.game.block.Block;
 import net.minecraft.game.block.Material;
 
 public class ModBlock extends Block {
-	public String name;
-
 	protected ModBlock(int id, Material material) {
 		super(id, material);
 	}

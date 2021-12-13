@@ -78,6 +78,13 @@ abstract class BaseMod {
 	}
 	
 	/*
+	 * Called before generating a new level to add custom mobs to the lists
+	 * Place your calls to `registerMonsterEntity` & `registerAnimalEntity` here
+	 */
+	public void populateMobsHashMap (int levelType) {	
+	}
+	
+	/*
 	 * Called by the creature spawner. Must return maxCreatures
 	 */
 	public int spawnerSetMaxHostileMobs (int maxCreatures, World world) {

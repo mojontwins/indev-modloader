@@ -19,7 +19,9 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Random;
+import java.util.TreeMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -27,6 +29,7 @@ import javax.imageio.ImageIO;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiNewLevel;
+import net.minecraft.client.physics.AxisAlignedBB;
 import net.minecraft.client.renderer.RenderBlocks;
 import net.minecraft.client.renderer.RenderEngine;
 import net.minecraft.client.renderer.entity.Render;
@@ -99,6 +102,9 @@ public class ModLoader {
 	// Store here the texture overrides
 	public static List<HashMap<String,Object>> overrides;
 	
+	// Store here the animated textures
+	public static List<HashMap<String,Object>> animations;
+	
 	// Used to modify RenderPlayer.armorFilenamePrefix
 	private static Field field_armorList = null;
 	private static Field field_modifiers = null;
@@ -120,8 +126,10 @@ public class ModLoader {
     // A HashMap to store level themes
     private static HashMap<Integer,ModLevelTheme> levelThemes = new HashMap<Integer,ModLevelTheme> ();
     
+    // A TreeMap to store fluids!
+    private static TreeMap<Integer,HashMap<String,Object>> customFluids = new TreeMap<Integer,HashMap<String,Object>> ();
+    
 	public ModLoader () {
-		
 	}
 	
 	public static void init () {
@@ -134,6 +142,9 @@ public class ModLoader {
 		
 		// Initialize overrides
 		overrides = new ArrayList<HashMap<String,Object>>();
+		
+		// Initialize animations
+		animations = new ArrayList<HashMap<String,Object>>();
 		
 		try {	    
 			// Make some fields accesible
@@ -337,8 +348,48 @@ public class ModLoader {
 		return true;
 	}
 	
+	/*
+	 *  Methods to boolean animation overriding textures 
+	 */
+	
+	public static int addAnimation (EnumTextureAtlases textureAtlas, String textureAtlasURI, int ticksPerFrame) {
+		int textureIndex; 
+		
+		if (textureAtlas == EnumTextureAtlases.TERRAIN) {
+			textureIndex = getFreeTerrainTextureIndex ();
+		} else {
+			textureIndex = getFreeItemTextureIndex ();
+		}
+		
+		Boolean success = addAnimation (textureAtlas, textureAtlasURI, ticksPerFrame, textureIndex);
+		
+		return success ? textureIndex : -1;		
+	}
+	
+	public static boolean addAnimation (EnumTextureAtlases textureAtlas, String textureAtlasURI, int ticksPerFrame, int textureIndex) {
+		System.out.println ("Overriding " + textureAtlas + " with animation " + textureAtlasURI + " at index " + textureIndex);
+		
+		try {
+			HashMap<String, Object> animation = new HashMap<String, Object>();
+			
+			animation.put("textureAtlas", textureAtlas);
+			animation.put("textureAtlasURI", textureAtlasURI);
+			animation.put("textureIndex", new Integer(textureIndex));
+			animation.put("ticksPerFrame", ticksPerFrame);
+			
+			animations.add(animation);
+		} catch (Exception e) {
+			return false;
+		}
+		return true;
+	}
+	
+	/*
+	 * Creates the needed textureFXs
+	 */
 	public static void registerAllTextureOverrides (RenderEngine renderEngine) throws Exception {
 		try {
+			// Static textures
 			for (Iterator<HashMap<String, Object>> iterator = overrides.iterator(); iterator.hasNext();) {
 				Map<String, Object> thisEntry = iterator.next ();
 				
@@ -352,6 +403,21 @@ public class ModLoader {
 				
 				ModTextureStatic modTextureStatic = new ModTextureStatic (textureIndex, textureAtlas, bufferedImage);
 				renderEngine.registerTextureFX(modTextureStatic);
+			}
+			
+			// Animations
+			for (Iterator<HashMap<String, Object>> iterator = animations.iterator(); iterator.hasNext();) {
+				Map<String, Object> thisEntry = iterator.next ();
+				
+				String textureAtlasURI = (String) thisEntry.get("textureAtlasURI");
+				int textureIndex = (Integer) thisEntry.get("textureIndex");
+				EnumTextureAtlases textureAtlas = (EnumTextureAtlases) thisEntry.get("textureAtlas");
+				int ticksPerFrame = (Integer) thisEntry.get("ticksPerFrame");
+				
+				System.out.println ("Creating ModTextureAnimated for texture " + textureIndex + " in " + textureAtlas + " from " + textureAtlasURI);
+				
+				ModTextureAnimated modTextureAnimated = new ModTextureAnimated (textureIndex, textureAtlas, textureAtlasURI, ticksPerFrame);
+				renderEngine.registerTextureFX(modTextureAnimated);
 			}
 		} catch (Exception e) {
 			System.out.println ("Exception @ registerAllTextureOverrides" + e);
@@ -758,6 +824,43 @@ public class ModLoader {
     	Spawner.availableAnimalEntities.put(entityID, entityClass);
     }
     
+    /*
+     * Remove monster mobs
+     */
+    public static void removeMonsterEntity (Class<? extends Entity> entityClass) {
+    	Iterator<Entry<Integer, Class<? extends Entity>>> it = Spawner.availableMonsterEntities.entrySet().iterator();
+    	while (it.hasNext()) {
+    		Map.Entry<Integer, Class<? extends Entity>> entry = it.next ();
+    		if (entityClass.equals(entry.getValue())) {
+    			System.out.println ("Removing " + entityClass.toString() + " from monsters list");
+    			it.remove ();
+    		}
+    	}
+    }
+    
+    /*
+     * Remove animal mobs
+     */
+    public static void removeAnimalEntity (Class<? extends Entity> entityClass) {
+    	Iterator<Entry<Integer, Class<? extends Entity>>> it = Spawner.availableAnimalEntities.entrySet().iterator();
+    	while (it.hasNext()) {
+    		Map.Entry<Integer, Class<? extends Entity>> entry = it.next ();
+    		if (entityClass.equals(entry.getValue())) {
+    			System.out.println ("Removing " + entityClass.toString() + " from animals list");
+    			it.remove ();
+    		}
+    	}
+    }
+    
+    /*
+     * Called before generating a new level to add custom mobs to the lists
+     */
+    public static void populateMobsHashMap (int levelType) {
+    	for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
+    		((BaseMod)iterator.next()).populateMobsHashMap(levelType);
+        }
+    }
+    
     // World Theme support
     
     /*
@@ -802,13 +905,36 @@ public class ModLoader {
     
     // Hooks for `LevelGenerator` and level themes
     
-    // Adjust water level
+    /*
+     *  Adjust water level
+     */
     public static int waterLevelAdjust (LevelGenerator levelGanerator) {
     	ModLevelTheme levelTheme = levelThemes.get(levelGanerator.levelType);
     	if (levelTheme != null) {
     		return levelTheme.waterLevelAdjust;
     	}
     	return 0;
+    }
+    
+	/*
+	 * Adjust the floorlevel just before it is converted to int and written to the height map
+	 */
+	public static double adjustFloorLevel (LevelGenerator levelGenerator, double floorLevel) {
+		ModLevelTheme levelTheme = levelThemes.get(levelGenerator.levelType);
+		if (levelTheme != null) {
+			floorLevel = levelTheme.adjustFloorLevel(levelGenerator, floorLevel);
+		}
+		return floorLevel;
+	}
+    
+	/*
+	 *  Adjust the (integer) height map, which is 0-centered at this stage
+	 */
+    public static void adjustHeightMap (LevelGenerator levelGenerator, int [] heightMap) {
+    	ModLevelTheme levelTheme = levelThemes.get(levelGenerator.levelType);
+    	if (levelTheme != null) {
+    		levelTheme.adjustHeightMap (levelGenerator, heightMap);
+    	}
     }
     
     // Soiling
@@ -906,4 +1032,63 @@ public class ModLoader {
     	}
     	return false;
     }
+	
+	// Custom fluids
+	
+	/*
+	 * Registers a custom fluid to be used in the required hooks below
+	 */
+	public static void registerFluid (Block source, Block still, Block flowing, int damage, int fireTicks) {
+		HashMap<String,Object> fluidEntry = new HashMap<String,Object> ();
+		
+		fluidEntry.put("source", source);
+		fluidEntry.put("still", still);
+		fluidEntry.put("flowing", flowing);
+		fluidEntry.put("damage", damage);
+		fluidEntry.put("fireTicks", fireTicks);
+		
+		customFluids.put(still.blockID, fluidEntry);
+		customFluids.put(flowing.blockID, fluidEntry);
+	}
+	
+	/*
+	 * Called from `Entity.onEntityUpdate`
+	 */
+	public static boolean handleEntityVsFluidCollision(Entity entity, World world) {
+		AxisAlignedBB aaBB = entity.boundingBox.expand(0.0F, -0.4F, 0.0F);
+        int x0 = (int)aaBB.minX;
+        int x1 = (int)aaBB.maxX + 1;
+        int y0 = (int)aaBB.minY;
+        int y1 = (int)aaBB.maxY + 1;
+        int z0 = (int)aaBB.minZ;
+        int z1 = (int)aaBB.maxZ + 1;
+
+        for(int x = x0; x < x1; ++x) {
+            for(int y = y0; y < y1; ++y) {
+                for(int z = z0; z < z1; ++z) {
+                	
+                	HashMap<String,Object> fluidEntry = customFluids.get(world.getBlockId(x, y, z));
+                	if (fluidEntry != null) {
+                		entity.attackEntityFrom((Entity)null, (int) fluidEntry.get("damage"));
+                		entity.fire = (int) fluidEntry.get("fireTicks");
+                		return true;
+                	}
+
+                }
+            }
+        }
+        
+        return false;
+	}
+	
+	/*
+	 * Called from World.fluidFlowCheck
+	 */
+	public static int customFluidSource (int blockID) {
+		HashMap<String,Object> fluidEntry = customFluids.get(blockID);
+		if (fluidEntry != null) {
+			return ((Block) fluidEntry.get ("source")).blockID;
+		}
+		return -9999;		
+	}
 }

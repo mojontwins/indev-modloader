@@ -62,7 +62,7 @@ public class BlockDeadBush extends ModBlock {
         return 1;
     }
 	
-	public int idDropped(int par1, Random rand, int par3) {
+	public int idDropped(int par1, Random rand) {
 		// 1 in 4 chance of dropping a stick
         if (rand.nextInt(4) == 0) {
         	return Item.stick.shiftedIndex;

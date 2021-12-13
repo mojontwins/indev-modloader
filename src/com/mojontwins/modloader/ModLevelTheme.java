@@ -13,6 +13,19 @@ public class ModLevelTheme {
 	public ModLevelTheme(String themeName) {
 		this.themeName = themeName;
 	}
+	
+	/*
+	 * Adjust the floorlevel just before it is converted to int and written to the height map
+	 */
+	public double adjustFloorLevel (LevelGenerator levelGenerator, double floorLevel) {
+		return floorLevel;
+	}
+	
+	/*
+	 *  Adjust (integer) height map, which is 0-centered at this stage
+	 */
+    public void adjustHeightMap (LevelGenerator levelGenerator, int [] heightMap) {
+    }
 
 	/*
 	 * Called each iteration to fill the empty block array with basic blocks
@@ -60,9 +73,9 @@ public class ModLevelTheme {
 	 * `world.skyColor` - 0x99CCFF by default
 	 * `world.fogColor` - 0xFFFFFF by default
 	 * `world.cloudColor` - 0xFFFFFF by default
-	 * `skylightSubtracted` Seems to be 15 by default. Skeletons & zombies only burn at day if it is > 7.
-	 * `skyBrightness` 15 by default.
-	 * `defaultFluid` - water or lava (for hell).
+	 * `world.skylightSubtracted` Seems to be 15 by default. Skeletons & zombies only burn at day if it is > 7.
+	 * `world.skyBrightness` 15 by default.
+	 * `world.defaultFluid` - water or lava (for hell).
 	 */
 	public void setVisuals (LevelGenerator levelGenerator, World world) {
     }

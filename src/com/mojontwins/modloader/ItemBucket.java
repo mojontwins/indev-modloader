@@ -43,7 +43,7 @@ public class ItemBucket extends ModItem {
 
             	// Abuse ItemBlock.onItemUse, which puts a block in the world
             	ItemStack itemStackWaterMoving = new ItemStack (Block.waterMoving);
-            	(itemStackWaterMoving).getItem().onItemUse (itemStackWaterMoving, world, x, y, z, sideHit);
+            	(itemStackWaterMoving).getItem().onItemUse (itemStackWaterMoving, entityPlayer, world, x, y, z, sideHit);
             	
         		// Replace this item with an empty bucket
         		return new ItemStack (mod_ClayStuff.itemBucketEmpty);
