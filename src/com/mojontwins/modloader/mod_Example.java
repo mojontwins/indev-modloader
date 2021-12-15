@@ -45,6 +45,9 @@ public class mod_Example extends BaseMod {
 	
 	public static int entitySlimeMobID;
 	
+	// New theme
+	public static int cavesThemeID;
+	
 	public void load () throws Exception {
 		blockStoneBricks = new BlockStoneBricks(ModLoader.getBlockId (), Material.rock).setBlockHardness(1.5F).setBlockResistance(1.5F).setName("block.stone_bricks");
 		blockStoneBricks.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_stone_bricks.png");
@@ -169,6 +172,8 @@ public class mod_Example extends BaseMod {
 		entitySlimeMobID = ModLoader.getNewMobID();
 		ModLoader.addEntityRenderer(EntitySlime.class, new RenderSlime(new ModelSlime (16), new ModelSlime(0), 0.25F));
 		ModLoader.registerMonsterEntity (entitySlimeMobID, EntitySlime.class);
+		
+		//cavesThemeID = ModLoader.registerWorldTheme(new ThemeCaves("Caves"));
 	}
 	
 	public void populateMobsHashMap (int levelType) {	

@@ -27,8 +27,10 @@ So I don't forget:
 * [x] Engine fix - Prevent eating food when right-clicking tile entities!
 * [x] Engine fix - Correct bug that makes the indev house not spawn.
 * [x] Engine fix - Arrows less harmful.
-* [ ] Engine addition - Shift to crouch - do not fall from ledges.
+* [x] Engine addition - Shift to crouch - do not fall from ledges.
 * [ ] Engine addition - Right click with sword to cover up.
+* [ ] Theme based "generate structures".
+* [ ] Custom "Raising / Soiling": Cave-like levels (supporting deep levels with 4 stacked sub-levels) to make the Nether like in early PE.
 
 # 1. Creating a basic ModBase class
 
@@ -5282,6 +5284,8 @@ After some fiddling, I managed to make the custom block renderer by hand, comple
 
 Ok, so now that I have a block for the distiller, it is time to create the associated GUI and tile entity.
 
+### A skeleton replica
+
 Nope, I can't design the GUI rn, so let's move on to another thing I have to do: the Skeleton replica which drops its head by chance 1:8 (for example). I'll use a slightly modified skin for it, just to make it a bit more interesting. As we did with husks, just inherit from the base class and refine:
 
 ```java
@@ -5328,6 +5332,382 @@ And replace skeletons with this:
     }
 ```
 
+### Invocations
+
 Now on to the effect of placing the skull on top of two diamond blocks.
 
-BEWARE! I just made `Minecraft.effectsRenderer` static! Test to check if I have broken something!
+BEWARE! I just made `Minecraft.effectsRenderer` static! Test to check if I have broken something! Nay, it works.
+
+### The cauldron
+
+I've been thinking and I don't really need a tile entity to make poison, just a changing block will suffice. I'll add a cauldron object (using a custom block model) which can be filled with nothing, water, acid or poison. Interacting with it with a bottle will do all the fiddling, replacing the bottle item and the block placed in the world by the correct instance.
+
+Right now, `BlockCauldron` is just a normal block with supports different angles and a custom model. It has attributes for 4 different texture indexes used to render the cauldron, and uses `itemIndexInTexture` for the contents, so I just have to check its value to know which kind of cauldron we are interacting with.
+
+```java
+    // Breed your poison with a custom tile renderer
+    
+    int cauldronTXZ = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_cauldron_xz.png");
+    int cauldronTNS = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_cauldron_ns.png");
+    int cauldronTW = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_cauldron_w.png");
+    int cauldronTE = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_cauldron_e.png");
+    
+    blockCauldronEmpty = new BlockCauldron(ModLoader.getBlockId()).setBlockHardness(1.0F).setName("block.cauldron.empty");
+    ((BlockCauldron) blockCauldronEmpty).tXZ = cauldronTXZ;
+    ((BlockCauldron) blockCauldronEmpty).tNS = cauldronTNS;
+    ((BlockCauldron) blockCauldronEmpty).tW = cauldronTW;
+    ((BlockCauldron) blockCauldronEmpty).tE = cauldronTE;
+    blockCauldronEmpty.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_empty.png");
+    ModLoader.registerBlock(blockCauldronEmpty);
+
+    blockCauldronWater = new BlockCauldron(ModLoader.getBlockId()).setBlockHardness(1.0F).setName("block.cauldron.water");
+    ((BlockCauldron) blockCauldronWater).tXZ = cauldronTXZ;
+    ((BlockCauldron) blockCauldronWater).tNS = cauldronTNS;
+    ((BlockCauldron) blockCauldronWater).tW = cauldronTW;
+    ((BlockCauldron) blockCauldronWater).tE = cauldronTE;
+    blockCauldronWater.blockIndexInTexture = Block.waterMoving.blockIndexInTexture;
+    ModLoader.registerBlock(blockCauldronWater);
+
+    blockCauldronAcid = new BlockCauldron(ModLoader.getBlockId()).setBlockHardness(1.0F).setName("block.cauldron.acid");
+    ((BlockCauldron) blockCauldronAcid).tXZ = cauldronTXZ;
+    ((BlockCauldron) blockCauldronAcid).tNS = cauldronTNS;
+    ((BlockCauldron) blockCauldronAcid).tW = cauldronTW;
+    ((BlockCauldron) blockCauldronAcid).tE = cauldronTE;
+    blockCauldronAcid.blockIndexInTexture = blockAcidFlowing.blockIndexInTexture;
+    ModLoader.registerBlock(blockCauldronAcid);
+
+    blockCauldronPoison = new BlockCauldron(ModLoader.getBlockId()).setBlockHardness(1.0F).setName("block.cauldron.poison");
+    ((BlockCauldron) blockCauldronPoison).tXZ = cauldronTXZ;
+    ((BlockCauldron) blockCauldronPoison).tNS = cauldronTNS;
+    ((BlockCauldron) blockCauldronPoison).tW = cauldronTW;
+    ((BlockCauldron) blockCauldronPoison).tE = cauldronTE;
+    blockCauldronPoison.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_poison.png");
+    ModLoader.registerBlock(blockCauldronPoison);
+
+    // We'll use the same custom block renderer for all the cauldron instances
+    blockCauldronRenderID = ModLoader.getUniqueBlockModelID(this, true);
+```
+
+The cauldron's custom renderer was generated with the `Json2RenderBlocks.jar` converter and it was set up in BlockBench so the last texture used is that of the contents. As mentioned, such contents is represented by `blockIndexInTexture`, so here's how we integrate the custom renderer for cauldrons:
+
+```java
+    public void renderInvBlock(RenderBlocks renderblocks, Block block, int renderType) {
+        Tessellator tessellator = Tessellator.instance;
+
+        [...]
+        
+        if (renderType == blockCauldronRenderID) {
+            tessellator.startDrawingQuads();
+            Tessellator.setNormal(0.0F, -1.0F, 0.0F);
+            RenderCauldron.renderBlock(0, -0.5F, -0.5F, -0.5F, ((BlockCauldron) block).tXZ, ((BlockCauldron) block).tNS, ((BlockCauldron) block).tW, ((BlockCauldron) block).tE, block.blockIndexInTexture);
+            tessellator.draw();
+        }
+    }
+
+    public boolean renderWorldBlock(RenderBlocks renderblocks, World world, int x, int y, int z, Block block, int renderType) {
+        Tessellator tessellator = Tessellator.instance;
+        
+        [...]
+
+        if (renderType == blockCauldronRenderID) {
+            float b = block.getBlockBrightness(world, x, y, z);
+            tessellator.setColorOpaque_F(b, b, b);
+            
+            return RenderCauldron.renderBlock(world.getBlockMetadata(x, y, z), x, y, z, ((BlockCauldron) block).tXZ, ((BlockCauldron) block).tNS, ((BlockCauldron) block).tW, ((BlockCauldron) block).tE, block.blockIndexInTexture);    
+        }
+        
+        return false;
+    }   
+```
+
+To create the cauldron new logic, we'll expand on what we have in the `onItemRightClick` method of `ItemBottle`, so if the block hit with the bottle is of class `BlockCauldron`, special stuff is done:
+
+* If the cauldron is empty, and the bottle is not empty, it will get filled with the content of the bottle, and the bottle will be replaced with the empty bottle.
+* If the cauldron is not empty, and the bottle is empty, it will be emptied and the bottle filled with its contents.
+
+We'll leave further interaction (i.e. throwing in mushrooms) for later. This is the way to check if we hit a cauldron, whatever type of cauldron it is:
+
+```java       
+    // Let's check if we hit a cauldron
+    if (blockID > 0 && Block.blocksList[blockID] != null && Block.blocksList[blockID] instanceof BlockCauldron) {
+        
+        // Empty cauldron, not empty bottle:
+        if (blockID == mod_PoisonLand.blockCauldronEmpty.blockID && this.contents != 0) {
+            // Fill cauldron
+            int newBlockID = 0;
+            
+            if (this.contents == Block.waterStill.blockID) {
+                newBlockID = mod_PoisonLand.blockCauldronWater.blockID;
+            } else if (this.contents == mod_PoisonLand.blockPoison.blockID) {
+                newBlockID = mod_PoisonLand.blockCauldronPoison.blockID;
+            } else if (this.contents == mod_PoisonLand.blockAcidFlowing.blockID) {
+                newBlockID = mod_PoisonLand.blockCauldronAcid.blockID;
+            }
+                                
+            world.setBlockAndMetadataWithNotify(x, y, z, newBlockID, meta);
+            
+            // Empty bottle
+            return new ItemStack (mod_PoisonLand.itemBottleEmpty);
+        }
+        
+        // Empty bottle, not empty cauldron:
+        if (blockID != mod_PoisonLand.blockCauldronEmpty.blockID && this.contents == 0) {
+            // Empty cauldron
+            int cauldronContents = Block.blocksList[blockID].blockIndexInTexture;
+            world.setBlockAndMetadataWithNotify(x, y, z, mod_PoisonLand.blockCauldronEmpty.blockID, meta);
+            
+            // Fill bottle
+            if (cauldronContents == Block.waterMoving.blockIndexInTexture) {
+                itemStack = new ItemStack (mod_PoisonLand.itemBottleWater);
+            } else if (cauldronContents == mod_PoisonLand.blockAcidFlowing.blockIndexInTexture) {
+                itemStack = new ItemStack (mod_PoisonLand.itemBottleAcid);
+            } else if (cauldronContents == mod_PoisonLand.blockPoison.blockIndexInTexture) {
+                itemStack = new ItemStack (mod_PoisonLand.itemBottlePoison);
+            }
+            
+            return itemStack;
+        }
+        
+        // Case else:
+        return itemStack;
+    }
+```
+
+Nothing really special, just basic itemStack / world block fiddling. Note how metadata is preserved for cauldrons as it represents the cauldron angle.
+
+Next would be adding mushrooms to the mix. Acid + glowing mushrooms should become poison. Water + brown mushrooms should become edible soup. That implies adding edible bottles of soup, and adding water to the world somehow. 
+
+Adding water should be as simple as placing water sources in the world. The problem is HOW. During the watering stage, the level generator fill all holes below water level with the default fluid, which is poison. I guess it's time to take a glance at the generator again and think of a way to add extra fluids which are different to the default fluid.
+
+First thing is understanding how the `floodFill` method in `LevelGenerator` works. 
+
+```java
+    private long floodFill(int var1, int var2, int var3, int var4, int var5) {
+```
+
+* `var1, var2, var3` is `x, y, z`.
+* `var4` seems to be *block to substitute*. 
+* `var5` seems to be *block to fill with*.
+
+The returned value seems to be a count of blocks replaced, or something similar. 
+
+So `(..., 0, blockID)` would be filling empty space with `blockID`. 
+
+During the watering phase, `liquidThemeSpawner` is called. It iteratems the amount of blocks divided by 1000 times. Each times it selects a completely random coordinate. If that coordinate in the blocks array is empty, it launches a flood fill in that coordinate which substitutes empty blocks with ID 255 (non existing hopefully). If the count of blocks returned is LESS than 640, it launches a new flood fill to change 255 with the default fluid block ID, otherwise it launches the new flood fill to restore the empty block (0).
+
+I think I could rewrite my theme hooks so there's a different handle for the surrounding sea and the inland ponds. Now I have a simple variable. Change this for two proper methods so I can use rand and stuff.
+
+Or better still, do this:
+
+```java
+    public int getWateringBlockID (LevelGenerator levelGenerator, boolean inland) {}
+```
+
+You can check `inland` and do what you will.
+
+So this allows me to have some water inland (with luck, will adjust later if too rare): 
+
+```java
+    public int getWateringBlockID (LevelGenerator levelGenerator, boolean inland) {
+        return inland && levelGenerator.rand.nextBoolean() ? Block.waterStill.blockID : mod_PoisonLand.blockAcidStill.blockID;
+    }
+```
+
+So the next thing is adding the actual item for soup, and a soup block, and the ability for the cauldron to contain soup. Then, think on a way to use mushroom blocks on the cauldron, and check whether brown / glowing mushroom blocks are properly differentiated.
+
+Then on the brewin'!
+
+To add the kind of interactivity I need to mushroom blocks I need to create a custom `ItemBlock` with the required method. The `ItemBlock` should store the mushroom type as the blocks do.
+
+```java
+    package com.mojontwins.modloader;
+
+    import net.minecraft.client.physics.MovingObjectPosition;
+    import net.minecraft.game.block.Block;
+    import net.minecraft.game.entity.player.EntityPlayer;
+    import net.minecraft.game.item.ItemBlock;
+    import net.minecraft.game.item.ItemStack;
+    import net.minecraft.game.level.World;
+
+    public class ItemBigMushroom extends ItemBlock {
+        public int mushroomType = 0;
+        
+        public ItemBigMushroom(int var1) {
+            super(var1);
+            Block block = Block.blocksList[blockID];
+            if (block instanceof BlockBigMushroom) {
+                mushroomType = ((BlockBigMushroom) block).mushroomType;
+            }
+        }
+
+        public ItemStack onItemRightClick(ItemStack itemStack, World world, EntityPlayer entityPlayer) {
+            MovingObjectPosition movingobjectposition = getMovingObjectPositionFromPlayer(world, entityPlayer, true);
+
+            if (movingobjectposition != null && movingobjectposition.typeOfHit == 0) {
+                int x = movingobjectposition.blockX;
+                int y = movingobjectposition.blockY;
+                int z = movingobjectposition.blockZ;
+
+                int blockID = world.getBlockId(x, y, z);
+                int meta = world.getBlockMetadata(x, y, z);  
+                
+                // Let's check if we hit a cauldron
+                if (blockID > 0 && Block.blocksList[blockID] != null && Block.blocksList[blockID] instanceof BlockCauldron) {
+                    // TODO
+                }
+            }
+
+            return itemStack;
+        }   
+    }
+```
+
+And change the way we defined Mushroom blocks in the mod class:
+
+```java
+    [...]
+    ModLoader.registerBlock(blockBigMushroomGreen, ItemBigMushroom.class);
+
+    [...]
+    ModLoader.registerBlock(blockBigMushroomBrown, ItemBigMushroom.class);
+```
+
+We also create a block to represent soup and one for goo. When you use the glowing mushroom on acid there's a change of 75% to get goo instead of poison.
+
+So those are the recipes:
+
+* Water + brown mushroom = Soup.
+* Water + green mushroom = Acid.
+* Acid + brown mushroon = Goo.
+* Acid + green mushroom = 50% chance goo / poison.
+* Poison + mushroom = Goo.
+* Soup + mushroom = Goo.
+* Goo + mushroom = Goo.
+
+An empty cauldron would not accept a mushroom block:
+
+```java
+    public ItemStack onItemRightClick(ItemStack itemStack, World world, EntityPlayer entityPlayer) {
+        MovingObjectPosition movingobjectposition = getMovingObjectPositionFromPlayer(world, entityPlayer, true);
+
+        if (movingobjectposition != null && movingobjectposition.typeOfHit == 0) {
+            int x = movingobjectposition.blockX;
+            int y = movingobjectposition.blockY;
+            int z = movingobjectposition.blockZ;
+
+            int blockID = world.getBlockId(x, y, z);
+            int meta = world.getBlockMetadata(x, y, z);  
+            
+            // Let's check if we hit a cauldron
+            if (blockID > 0 && Block.blocksList[blockID] != null && Block.blocksList[blockID] instanceof BlockCauldron) {
+                // Empty cauldron: do nothing
+                if (blockID == mod_PoisonLand.blockCauldronEmpty.blockID) {
+                    return itemStack;
+                }
+                
+                int newBlockID = blockID; 
+                
+                // Cauldron is not empty.
+                int cauldronContents = Block.blocksList[blockID].blockIndexInTexture;
+                                
+                if (cauldronContents == Block.waterMoving.blockIndexInTexture) {
+                    // Water, + brown = soup; + green = acid
+                    newBlockID = this.mushroomType == 0 ? mod_PoisonLand.blockCauldronSoup.blockID : mod_PoisonLand.blockCauldronAcid.blockID;
+                } else if (cauldronContents == mod_PoisonLand.blockAcidFlowing.blockIndexInTexture) {
+                    // Acid, + brown = goo; + green = 50 % chance goo / poison
+                    newBlockID = this.mushroomType == 0 || rand.nextBoolean() ? mod_PoisonLand.blockCauldronGoo.blockID : mod_PoisonLand.blockCauldronPoison.blockID;
+                } else {
+                    // Poison + ? = goo, 
+                    // Soup + ? = goo,
+                    // Goo + ? = goo.
+                    newBlockID = mod_PoisonLand.blockCauldronGoo.blockID;
+                }
+                
+                // Replace cauldron
+                world.setBlockAndMetadataWithNotify(x, y, z, newBlockID, meta);
+                    
+                // Decrease stack
+                itemStack.stackSize --;
+            }
+        }
+
+        return itemStack;
+    }
+```
+
+### The Diamond Skeleton
+
+I want diamond skeleton not to be just reskinned skeletons. I want them bigger, by a factor of 1.5F (so 3 blocks tall!). I'm going to use the same method that is used to make giant zombies bigger: extend the `EntityLiving` class and add a  `preRenderCallback` to scale the model:
+
+I'm not scalling it very much so it's not weird that it has the same collision as normal skeletons.
+
+```java
+    package com.mojontwins.modloader;
+
+    import org.lwjgl.opengl.GL11;
+
+    import net.minecraft.client.model.ModelBase;
+    import net.minecraft.client.renderer.entity.RenderLiving;
+    import net.minecraft.game.entity.EntityLiving;
+
+    public class RenderDiamondSkeleton extends RenderLiving {
+        float scale = 1.5F;
+        
+        public RenderDiamondSkeleton(ModelBase var1, float var2) {
+            super(var1, var2);
+        }
+
+        protected final void preRenderCallback(EntityLiving var1, float var2) {
+            GL11.glScalef(this.scale, this.scale, this.scale);
+        }
+    }
+```
+
+And this in the mod class:
+
+```java
+    entityDiamondSkeletonMobID = ModLoader.getNewMobID();
+    ModLoader.addEntityRenderer(EntityDiamondSkeleton.class, new RenderDiamondSkeleton(new ModelSkeleton (), 0.7F));
+```
+
+The only thing remaining is actually spawning the entity when a skull is put on two diamond blocks:
+
+```java
+    public void onBlockPlaced(World world, int x, int y, int z, int side) {
+        if (this.blockID != mod_PoisonLand.blockSkullHead.blockID) return;
+        
+        // Detect if it's on top of two diamond blocks
+        // And there's 1 block surrounding to each direction
+        
+        for (int i = x - 1; i <= x + 1; i ++) {
+            for (int j = y - 2; j <= y; j ++) {
+                for (int k = z - 1; k <= z + 1; k ++)  {
+                    int blockID = world.getBlockId(i, j, k);
+                    if (j < y && i == x && k == z) {
+                        if (blockID != Block.blockDiamond.blockID) return;
+                    } else if (i != x || k != z) {
+                        if (blockID != 0) return;
+                    }                   
+                }
+            }
+        }
+        
+        // If we get to this point the condition is fulfilled.
+        
+        // Destroy the blocks
+        for (int j = y -2; j <= y; j ++) {
+            Minecraft.effectRenderer.addBlockDestroyEffects(x, j, z);
+            world.setBlockWithNotify(x, y, z, 0);
+        }
+        
+        // Add the entity
+        Entity entityDiamondSkeleton = new EntityDiamondSkeleton (world);
+        entityDiamondSkeleton.setPositionAndRotation (x, y, z, 0.0F, 0.0F);
+        world.playSoundAtEntity(entityDiamondSkeleton, "random.explode", 0.5F, 1.0F);
+        world.spawnEntityInWorld(entityDiamondSkeleton);
+        
+    }
+```
+
+Last thing to add is the prize item this Diamond Skull drops.
+

@@ -994,10 +994,10 @@ public class ModLoader {
 	 * Use to select a custom BlockID for "water" (not much choice)
 	 * Return -1 for the default generation which is Block.waterStill.BlockID;
 	 */
-	public static int getWateringBlockID (LevelGenerator levelGenerator) {
+	public static int getWateringBlockID (LevelGenerator levelGenerator, boolean inland) {
 		ModLevelTheme levelTheme = levelThemes.get(levelGenerator.levelType);
     	if (levelTheme != null) {
-    		return levelTheme.getWateringBlockID(levelGenerator);
+    		return levelTheme.getWateringBlockID(levelGenerator, inland);
     	}
 		return -1;
 	}

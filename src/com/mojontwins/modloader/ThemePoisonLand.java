@@ -37,8 +37,8 @@ public class ThemePoisonLand extends ModLevelTheme {
         return blockID;
     }
     
-	public int getWateringBlockID (LevelGenerator levelGenerator) {
-		return mod_PoisonLand.blockAcidStill.blockID;
+	public int getWateringBlockID (LevelGenerator levelGenerator, boolean inland) {
+		return inland && levelGenerator.rand.nextBoolean() ? Block.waterStill.blockID : mod_PoisonLand.blockAcidStill.blockID;
 	}
 	
 	public void setVisuals (LevelGenerator levelGenerator, World world) {

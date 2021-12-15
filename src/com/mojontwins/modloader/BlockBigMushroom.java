@@ -16,7 +16,7 @@ public class BlockBigMushroom extends ModBlock {
 	}
 
     public int getBlockTextureFromSideAndMetadata(int par1, int par2)
-    {
+    {    	
     	// meta = 10: stem, par > 1: sides
         if (par2 == 10 && par1 > 1) {
             return textureStem;

@@ -5,6 +5,7 @@ import net.minecraft.client.physics.AxisAlignedBB;
 import net.minecraft.game.block.Block;
 import net.minecraft.game.block.Material;
 import net.minecraft.game.entity.Entity;
+import net.minecraft.game.item.Item;
 import net.minecraft.game.level.World;
 import util.MathHelper;
 
@@ -55,6 +56,8 @@ public class BlockMobHead extends ModBlock {
     }
     
     public void onBlockPlaced(World world, int x, int y, int z, int side) {
+    	if (this.blockID != mod_PoisonLand.blockSkullHead.blockID) return;
+    	
     	// Detect if it's on top of two diamond blocks
     	// And there's 1 block surrounding to each direction
     	
@@ -74,11 +77,16 @@ public class BlockMobHead extends ModBlock {
     	// If we get to this point the condition is fulfilled.
     	
     	// Destroy the blocks
-    	for (int j = y -2; j <= y; j ++) {
+    	for (int j = y - 2; j <= y; j ++) {
     		Minecraft.effectRenderer.addBlockDestroyEffects(x, j, z);
-    		world.setBlockWithNotify(x, y, z, 0);
+    		world.setBlockWithNotify(x, j, z, 0);
     	}
     	
     	// Add the entity
+    	Entity entityDiamondSkeleton = new EntityDiamondSkeleton (world);
+    	entityDiamondSkeleton.setPositionAndRotation (x, y, z, 0.0F, 0.0F);
+    	world.playSoundAtEntity(entityDiamondSkeleton, "random.explode", 0.5F, 1.0F);
+		world.spawnEntityInWorld(entityDiamondSkeleton);
+		
     }
 }

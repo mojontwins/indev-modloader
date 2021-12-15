@@ -1734,10 +1734,10 @@ I'd recommend reading what's in the diary about this stage and trying to underst
 
 ### Make your ocean
 
-In the **Watering** a flood fill is performed in the four corners of the horizontal plane set at `waterLevel` to create the surrounding ocean (if appliable). You can select which `blockID` to use. Returning `-1` will select `Block.waterstill.blockID`. 
+In the **Watering** a series of flood fills are performed: first, randomly, if the filled space contains less than 640 blocks. Then, in the four edges of the horizontal plane set at `waterLevel` to create the surrounding ocean (if appliable). You can select which `blockID` to use. Returning `-1` will select `Block.waterstill.blockID`. `inland` is set to `true` during the initial fills (which usually fill little ponds), and `false` during the later fills (those which create oceans).
 
 ```java
-    public int getWateringBlockID (LevelGenerator levelGenerator) {
+    public int getWateringBlockID (LevelGenerator levelGenerator, boolean inland) {
         return -1;
     }
 ```

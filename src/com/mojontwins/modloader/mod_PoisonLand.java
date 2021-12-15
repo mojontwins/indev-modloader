@@ -14,6 +14,7 @@ import net.minecraft.game.block.BlockFluidSource;
 import net.minecraft.game.block.BlockStationary;
 import net.minecraft.game.block.Material;
 import net.minecraft.game.entity.monster.EntitySkeleton;
+import net.minecraft.game.item.Item;
 import net.minecraft.game.item.ItemStack;
 import net.minecraft.game.level.World;
 import net.minecraft.game.level.generator.LevelGenerator;
@@ -25,6 +26,9 @@ public class mod_PoisonLand extends BaseMod {
 	public static ModBlock blockBigMushroomGreen;
 	public static ModBlock blockBigMushroomBrown;
 	public static ModBlock blockSkullHead;
+	public static ModBlock blockPoison;
+	public static ModBlock blockSoup;
+	public static ModBlock blockGoo;
 	
 	// A new fluid!
 	public static BlockAcidFlowing blockAcidFlowing;
@@ -36,6 +40,8 @@ public class mod_PoisonLand extends BaseMod {
 	public static ModItem itemBottleWater;
 	public static ModItem itemBottlePoison;
 	public static ModItem itemBottleAcid;
+	public static ModItem itemBottleSoup;
+	public static ModItem itemBottleGoo;
 	
 	// New theme
 	public static int poisonLandThemeID;
@@ -49,9 +55,15 @@ public class mod_PoisonLand extends BaseMod {
 	public static ModBlock blockCauldronWater;
 	public static ModBlock blockCauldronAcid;
 	public static ModBlock blockCauldronPoison;
+	public static ModBlock blockCauldronSoup;
+	public static ModBlock blockCauldronGoo;
 	
 	// New? mobs:
 	public static int entityPoisonSkeletonMobID;
+	public static int entityDiamondSkeletonMobID;
+	
+	// And the prize
+	public static ModItem itemTalisman;
 	
 	public mod_PoisonLand() {
 	}
@@ -73,14 +85,26 @@ public class mod_PoisonLand extends BaseMod {
 		blockBigMushroomGreen.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_mushroom_inside.png");
 		((BlockBigMushroom) blockBigMushroomGreen).textureCap = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_mushroom_green.png");
 		((BlockBigMushroom) blockBigMushroomGreen).textureStem = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_mushroom_trunk.png");
-		ModLoader.registerBlock(blockBigMushroomGreen);
+		ModLoader.registerBlock(blockBigMushroomGreen, ItemBigMushroom.class);
 		
 		blockBigMushroomBrown = new BlockBigMushroom(ModLoader.getBlockId(), 0).setBlockHardness(0.25F).setName("block.big_mushroom_brown");
 		blockBigMushroomBrown.stepSound = Block.soundWoodFootstep;
 		blockBigMushroomBrown.blockIndexInTexture = blockBigMushroomGreen.blockIndexInTexture;
 		((BlockBigMushroom) blockBigMushroomBrown).textureCap = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_mushroom_brown.png");
 		((BlockBigMushroom) blockBigMushroomBrown).textureStem = ((BlockBigMushroom)blockBigMushroomGreen).textureStem;	
-		ModLoader.registerBlock(blockBigMushroomBrown);
+		ModLoader.registerBlock(blockBigMushroomBrown, ItemBigMushroom.class);
+		
+		blockPoison = new ModBlock(ModLoader.getBlockId(), Material.water).setBlockHardness(0.2F).setName("block.poison");
+		blockPoison.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_poison.png");
+		ModLoader.registerBlock(blockPoison);
+		
+		blockSoup = new ModBlock(ModLoader.getBlockId(), Material.water).setBlockHardness(0.2F).setName("block.soup");
+		blockSoup.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_soup.png");
+		ModLoader.registerBlock(blockSoup);
+		
+		blockGoo = new ModBlock(ModLoader.getBlockId(), Material.water).setBlockHardness(0.2F).setName("block.goo");
+		blockGoo.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_goo.png");
+		ModLoader.registerBlock(blockGoo);
 		
 		// Blocks used for the new fluid
 		
@@ -112,11 +136,24 @@ public class mod_PoisonLand extends BaseMod {
 		itemBottleWater = new ItemBottle(ModLoader.getItemId(), Block.waterStill.blockID).setName ("item.bottle_water");
 		itemBottleWater.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_bottle_water.png"));
 		
-		itemBottlePoison = new ItemBottle(ModLoader.getItemId(), 9999).setName ("item.bottle_poison");
+		itemBottlePoison = new ItemBottle(ModLoader.getItemId(), blockPoison.blockID).setName ("item.bottle_poison");
 		itemBottlePoison.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_bottle_poison.png"));
 
 		itemBottleAcid = new ItemBottle(ModLoader.getItemId(), blockAcidStill.blockID).setName ("item.bottle_acid");
 		itemBottleAcid.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_bottle_acid.png"));
+		
+		itemBottleSoup = new ItemBottle(ModLoader.getItemId(), blockSoup.blockID).setName ("item.bottle_soup");
+		itemBottleSoup.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_bottle_soup.png"));
+
+		itemBottleGoo = new ItemBottle(ModLoader.getItemId(), blockGoo.blockID).setName ("item.bottle_goo");
+		itemBottleGoo.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_bottle_goo.png"));
+		
+		// And a way to craft them
+		
+		ModLoader.addRecipe(new ItemStack(itemBottleEmpty, 1), new Object [] {
+			"#", "#",
+			'#', Block.glass
+		});
 		
 		// Associate a renderer to our EntityThrowableBottles:
 		
@@ -124,7 +161,7 @@ public class mod_PoisonLand extends BaseMod {
 		
 		// Skull head blocks with a custom renderer
 		
-		blockSkullHead = new BlockMobHead(ModLoader.getBlockId(), Material.rock).setBlockHardness(1.5F).setBlockLightValue(1.0F).setName("block.skullhead");
+		blockSkullHead = new BlockMobHead(ModLoader.getBlockId(), Material.wood).setBlockHardness(1.0F).setBlockLightValue(1.0F).setName("block.skullhead");
 		blockSkullHead.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_skeleton_head.png");
 		ModLoader.registerBlock(blockSkullHead);
 		blockSkullHeadRenderID = ModLoader.getUniqueBlockModelID(this, true);
@@ -165,28 +202,52 @@ public class mod_PoisonLand extends BaseMod {
 		((BlockCauldron) blockCauldronPoison).tNS = cauldronTNS;
 		((BlockCauldron) blockCauldronPoison).tW = cauldronTW;
 		((BlockCauldron) blockCauldronPoison).tE = cauldronTE;
-		blockCauldronPoison.blockIndexInTexture = ModLoader.addOverride(EnumTextureAtlases.TERRAIN, "textures/block_poison.png");
+		blockCauldronPoison.blockIndexInTexture = blockPoison.blockIndexInTexture;
 		ModLoader.registerBlock(blockCauldronPoison);
+		
+		blockCauldronSoup = new BlockCauldron(ModLoader.getBlockId()).setBlockHardness(1.0F).setName("block.cauldron.soup");
+		((BlockCauldron) blockCauldronSoup).tXZ = cauldronTXZ;
+		((BlockCauldron) blockCauldronSoup).tNS = cauldronTNS;
+		((BlockCauldron) blockCauldronSoup).tW = cauldronTW;
+		((BlockCauldron) blockCauldronSoup).tE = cauldronTE;
+		blockCauldronSoup.blockIndexInTexture = blockSoup.blockIndexInTexture;
+		ModLoader.registerBlock(blockCauldronSoup);
+		
+		blockCauldronGoo = new BlockCauldron(ModLoader.getBlockId()).setBlockHardness(1.0F).setName("block.cauldron.goo");
+		((BlockCauldron) blockCauldronGoo).tXZ = cauldronTXZ;
+		((BlockCauldron) blockCauldronGoo).tNS = cauldronTNS;
+		((BlockCauldron) blockCauldronGoo).tW = cauldronTW;
+		((BlockCauldron) blockCauldronGoo).tE = cauldronTE;
+		blockCauldronGoo.blockIndexInTexture = blockGoo.blockIndexInTexture;
+		ModLoader.registerBlock(blockCauldronGoo);
 
 		// We'll use the same custom block renderer for all the cauldron instances
+		
 		blockCauldronRenderID = ModLoader.getUniqueBlockModelID(this, true);
+		
+		// And a recipe for cauldrons
+		
+		ModLoader.addRecipe(new ItemStack(blockCauldronEmpty, 1), new Object [] {
+			"# #", "# #", "###",
+			'#', Item.ingotIron
+		});
 		
 		// New mobs:
 
 		entityPoisonSkeletonMobID = ModLoader.getNewMobID();
 		ModLoader.addEntityRenderer(EntityPoisonSkeleton.class, new RenderLiving(new ModelSkeleton (), 0.5F));
 		
+		entityDiamondSkeletonMobID = ModLoader.getNewMobID();
+		ModLoader.addEntityRenderer(EntityDiamondSkeleton.class, new RenderDiamondSkeleton(new ModelSkeleton (), 0.7F));
+		
+		// And the prize
+		
+		itemTalisman = new ModItem(ModLoader.getItemId()).setMaxStackSize(1).setName("item.poison_talisman");
+		itemTalisman.setIconIndex(ModLoader.addOverride(EnumTextureAtlases.ITEMS, "textures/item_talisman.png"));
+		
 		// Add the level theme
 		
 		poisonLandThemeID = ModLoader.registerWorldTheme(new ThemePoisonLand("Poison Land"));
-	}
-
-	public void hookGameStart (Minecraft minecraft) {
-		minecraft.thePlayer.inventory.setInventorySlotContents(4, new ItemStack(blockSkullHead, 1));
-		minecraft.thePlayer.inventory.setInventorySlotContents(5, new ItemStack(itemBottleEmpty, 1));
-		minecraft.thePlayer.inventory.setInventorySlotContents(6, new ItemStack(itemBottleEmpty, 1));
-		minecraft.thePlayer.inventory.setInventorySlotContents(7, new ItemStack(itemBottlePoison, 1));
-		minecraft.thePlayer.inventory.setInventorySlotContents(8, new ItemStack(Block.blockDiamond, 64));
 	}
 
 	public void renderInvBlock(RenderBlocks renderblocks, Block block, int renderType) {
@@ -194,104 +255,33 @@ public class mod_PoisonLand extends BaseMod {
 
 		if (renderType == blockSkullHeadRenderID) {
 			tessellator.startDrawingQuads();
-            Tessellator.setNormal(0.0F, -1.0F, 0.0F);
-            tessellator.setColorOpaque_F(1.0F, 1.0F, 1.0F);
-            this.renderBlockSkullHead(block, -0.5F, -0.5F, -0.5F, 3);
+            RenderSkeletonSkull.renderBlock(null, block, 4, -0.5F, -0.5F, -0.5F, block.blockIndexInTexture);
             tessellator.draw();
 		} else if (renderType == blockCauldronRenderID) {
 			tessellator.startDrawingQuads();
-            Tessellator.setNormal(0.0F, -1.0F, 0.0F);
-            RenderCauldron.renderBlock(0, -0.5F, -0.5F, -0.5F, ((BlockCauldron) block).tXZ, ((BlockCauldron) block).tNS, ((BlockCauldron) block).tW, ((BlockCauldron) block).tE, block.blockIndexInTexture);
+            RenderCauldron.renderBlock(null, block, 4, -0.5F, -0.5F, -0.5F, ((BlockCauldron) block).tXZ, ((BlockCauldron) block).tNS, ((BlockCauldron) block).tW, ((BlockCauldron) block).tE, block.blockIndexInTexture);
             tessellator.draw();
 		}
     }
 
 	public boolean renderWorldBlock(RenderBlocks renderblocks, World world, int x, int y, int z, Block block, int renderType) {
 		Tessellator tessellator = Tessellator.instance;
+		int meta = world.getBlockMetadata(x, y, z);
 		
 		if (renderType == blockSkullHeadRenderID) {
 			float b = block.getBlockBrightness(world, x, y, z);
 			tessellator.setColorOpaque_F(b, b, b);
 	        
-			return this.renderBlockSkullHead (block, (float)x, (float)y, (float)z, world.getBlockMetadata(x, y, z));
+			//return this.renderBlockSkullHead (block, (float)x, (float)y, (float)z, world.getBlockMetadata(x, y, z));
+			return RenderSkeletonSkull.renderBlock(world, block, meta, x, y, z, block.blockIndexInTexture);
 		}
 		
 		if (renderType == blockCauldronRenderID) {
-			float b = block.getBlockBrightness(world, x, y, z);
-			tessellator.setColorOpaque_F(b, b, b);
-	        
-			return RenderCauldron.renderBlock(world.getBlockMetadata(x, y, z), x, y, z, ((BlockCauldron) block).tXZ, ((BlockCauldron) block).tNS, ((BlockCauldron) block).tW, ((BlockCauldron) block).tE, block.blockIndexInTexture);    
+			return RenderCauldron.renderBlock(world, block, meta, x, y, z, ((BlockCauldron) block).tXZ, ((BlockCauldron) block).tNS, ((BlockCauldron) block).tW, ((BlockCauldron) block).tE, block.blockIndexInTexture);    
 		}
 		
         return false;
     }	
-	
-	public boolean renderBlockSkullHead (Block block, float x, float y, float z, int meta) {
-		float x1, y1, z1, x2, y2, z2;
-		TupleFloat t;
-		
-        x1 = x + 0.25F;
-        x2 = x1 + 0.5F;
-        y1 = y;
-        y2 = y + 0.5F;
-        z1 = z + 0.25F;
-        z2 = z1 + 0.5F;
-        
-		Tessellator tessellator = Tessellator.instance;
-        int i = block.blockIndexInTexture;
-
-        // These point to the 16x16 texture which is 4 8x8 blocks:
-        // L  R
-        // T  F
-        
-        int j = (i & 0xf) << 4;
-        int k = i & 0xff0;
-        
-        // Draw top
-        t = TextureCoords.subIndex2TextureCoords(2, j, k);
-        
-        tessellator.addVertexWithUV(x2, y2, z2, t.x2, t.y2);
-        tessellator.addVertexWithUV(x2, y2, z1, t.x2, t.y1);
-        tessellator.addVertexWithUV(x1, y2, z1, t.x1, t.y1);
-        tessellator.addVertexWithUV(x1, y2, z2, t.x1, t.y2);
-        
-        // Orientation based upon meta
-        TupleInt o = TextureCoords.orientationMeta2subIndexTuples (meta);
-        
-        // Draw front (north)
-        t = TextureCoords.subIndex2TextureCoords(o.n, j, k);
-        
-        tessellator.addVertexWithUV(x1, y2, z1, t.x2, t.y1);
-        tessellator.addVertexWithUV(x2, y2, z1, t.x1, t.y1);
-        tessellator.addVertexWithUV(x2, y1, z1, t.x1, t.y2);
-        tessellator.addVertexWithUV(x1, y1, z1, t.x2, t.y2);
-
-        // Draw back (south)
-        t = TextureCoords.subIndex2TextureCoords(o.s, j, k);
-        
-        tessellator.addVertexWithUV(x1, y2, z2, t.x1, t.y1);
-        tessellator.addVertexWithUV(x1, y1, z2, t.x1, t.y2);
-        tessellator.addVertexWithUV(x2, y1, z2, t.x2, t.y2);
-        tessellator.addVertexWithUV(x2, y2, z2, t.x2, t.y1);
-        
-        // Draw left (west)
-        t = TextureCoords.subIndex2TextureCoords(o.w, j, k);
-
-        tessellator.addVertexWithUV(x1, y2, z1, t.x1, t.y1);
-        tessellator.addVertexWithUV(x1, y1, z1, t.x1, t.y2);
-        tessellator.addVertexWithUV(x1, y1, z2, t.x2, t.y2);
-        tessellator.addVertexWithUV(x1, y2, z2, t.x2, t.y1);
-        
-        // Draw right (east)
-        t = TextureCoords.subIndex2TextureCoords(o.e, j, k);
-        
-        tessellator.addVertexWithUV(x2, y2, z1, t.x2, t.y1);
-        tessellator.addVertexWithUV(x2, y2, z2, t.x1, t.y1);
-        tessellator.addVertexWithUV(x2, y1, z2, t.x1, t.y2);
-        tessellator.addVertexWithUV(x2, y1, z1, t.x2, t.y2);
-	
-        return true;
-	}
 	
 	public void populateMobsHashMap (int levelType) {	
 		// Add poison skeletons instead of skeletons
@@ -304,10 +294,21 @@ public class mod_PoisonLand extends BaseMod {
 	
 	public void hookGenerateStructures (LevelGenerator levelGenerator, World world) {
 		
-		world.setBlockAndMetadataWithNotify(world.xSpawn - 2, world.ySpawn - 1, world.zSpawn - 2, blockCauldronAcid.blockID, 2);
+		world.setBlockAndMetadataWithNotify(world.xSpawn - 1, world.ySpawn - 1, world.zSpawn - 1, blockCauldronAcid.blockID, 2);
 		world.setBlockAndMetadataWithNotify(world.xSpawn, world.ySpawn - 1, world.zSpawn - 2, blockCauldronWater.blockID, 4);
-		world.setBlockAndMetadataWithNotify(world.xSpawn + 2, world.ySpawn - 1, world.zSpawn - 2, blockCauldronPoison.blockID, 5);
+		world.setBlockAndMetadataWithNotify(world.xSpawn + 1, world.ySpawn - 1, world.zSpawn - 1, blockCauldronPoison.blockID, 5);
 		world.setBlockAndMetadataWithNotify(world.xSpawn, world.ySpawn - 1, world.zSpawn+ 1, blockCauldronEmpty.blockID, 3);
-
+		
 	}
+	
+	public void hookGameStart (Minecraft minecraft) {
+		
+		minecraft.thePlayer.inventory.setInventorySlotContents(4, new ItemStack(blockSkullHead, 1));
+		minecraft.thePlayer.inventory.setInventorySlotContents(5, new ItemStack(itemBottleEmpty, 1));
+		minecraft.thePlayer.inventory.setInventorySlotContents(6, new ItemStack(itemBottleEmpty, 1));
+		minecraft.thePlayer.inventory.setInventorySlotContents(7, new ItemStack(blockBigMushroomBrown, 64));
+		minecraft.thePlayer.inventory.setInventorySlotContents(8, new ItemStack(Block.blockDiamond, 64));
+		
+	}
+
 }

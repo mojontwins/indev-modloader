@@ -64,7 +64,7 @@ public class ModLevelTheme {
 	 * Use to select a custom BlockID for "water" (not much choice)
 	 * Return -1 for the default generation which is Block.waterStill.BlockID;
 	 */
-	public int getWateringBlockID (LevelGenerator levelGenerator) {
+	public int getWateringBlockID (LevelGenerator levelGenerator, boolean inland) {
 		return -1;
 	}
 	

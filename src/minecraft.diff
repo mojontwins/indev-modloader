@@ -2,19 +2,37 @@ Only in MCP-LTS/src/minecraft: armor
 Only in MCP-LTS/src/minecraft/com: mojontwins
 Only in MCP-LTS/src/minecraft: mob
 diff -ur MCP-LTS/src/minecraft/net/minecraft/client/GameSettings.java MCP-LTS_Clean/src/minecraft/net/minecraft/client/GameSettings.java
---- MCP-LTS/src/minecraft/net/minecraft/client/GameSettings.java	2021-11-27 11:06:33.773986200 +0100
+--- MCP-LTS/src/minecraft/net/minecraft/client/GameSettings.java	2021-12-15 13:26:30.029622100 +0100
 +++ MCP-LTS_Clean/src/minecraft/net/minecraft/client/GameSettings.java	2021-11-10 11:11:51.654940600 +0100
-@@ -23,7 +23,7 @@
+@@ -23,13 +23,12 @@
      public KeyBinding keyBindBack = new KeyBinding("Back", 31);
      public KeyBinding keyBindRight = new KeyBinding("Right", 32);
      public KeyBinding keyBindJump = new KeyBinding("Jump", 57);
 -    public KeyBinding keyBindInventory = new KeyBinding("Inventory", 18);
 +    public KeyBinding keyBindInventory = new KeyBinding("Inventory", 23);
      public KeyBinding keyBindDrop = new KeyBinding("Drop", 16);
-     private KeyBinding keyBindChat = new KeyBinding("Chat", 20);
+-    public KeyBinding keyBindChat = new KeyBinding("Chat", 20);
++    private KeyBinding keyBindChat = new KeyBinding("Chat", 20);
      public KeyBinding keyBindToggleFog = new KeyBinding("Toggle fog", 33);
+     public KeyBinding keyBindSave = new KeyBinding("Save location", 28);
+     public KeyBinding keyBindLoad = new KeyBinding("Load location", 19);
+-    public KeyBinding keyBindSneak = new KeyBinding("Sneak", 42);
+     public KeyBinding[] keyBindings;
+     private Minecraft mc;
+     private File optionsFile;
+@@ -38,8 +37,8 @@
+     public boolean thirdPersonView;
+ 
+     public GameSettings(Minecraft var1, File var2) {
+-        this.keyBindings = new KeyBinding[]{this.keyBindForward, this.keyBindLeft, this.keyBindBack, this.keyBindRight, this.keyBindJump, this.keyBindSneak, this.keyBindDrop, this.keyBindInventory, this.keyBindChat, this.keyBindToggleFog, this.keyBindSave, this.keyBindLoad};
+-        this.numberOfOptions = 10;
++        this.keyBindings = new KeyBinding[]{this.keyBindForward, this.keyBindLeft, this.keyBindBack, this.keyBindRight, this.keyBindJump, this.keyBindDrop, this.keyBindInventory, this.keyBindChat, this.keyBindToggleFog, this.keyBindSave, this.keyBindLoad};
++        this.numberOfOptions = 9;
+         this.difficulty = 2;
+         this.thirdPersonView = false;
+         this.mc = var1;
 diff -ur MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java
---- MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java	2021-12-10 13:40:26.069829900 +0100
+--- MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java	2021-12-14 16:21:00.056470900 +0100
 +++ MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java	2021-11-10 11:11:51.701815400 +0100
 @@ -9,8 +9,6 @@
  import java.nio.ByteBuffer;
@@ -86,15 +104,16 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS_Clean
          try {
              while(this.running) {
                  if (this.theWorld != null) {
-@@ -431,20 +416,6 @@
+@@ -431,21 +416,6 @@
              this.displayGuiScreen(new GuiIngameMenu());
          }
      }
 -    
 -    private boolean itemRightClick(ItemStack var2, int var3, World var5) {
 -    	EntityPlayerSP var7 = this.thePlayer;
--        ItemStack var4;
--        if ((var4 = var2.getItem().onItemRightClick(var2, var5, var7)) != var2 || var4 != null && var4.stackSize != var3) {
+-        ItemStack var4 = var2.getItem().onItemRightClick(var2, var5, var7);
+-        
+-        if (var4 != var2 || var4 != null && var4.stackSize != var3) {
 -            this.thePlayer.inventory.mainInventory[this.thePlayer.inventory.currentItem] = var4;
 -            this.entityRenderer.itemRenderer.resetEquippedProgress();
 -            if (var4.stackSize == 0) {
@@ -107,7 +126,7 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS_Clean
  
      private void clickMouse(int var1) {
          if (var1 != 0 || this.leftClickCounter <= 0) {
-@@ -452,19 +423,28 @@
+@@ -453,19 +423,28 @@
                  this.entityRenderer.itemRenderer.equippedItemRender();
              }
  
@@ -145,7 +164,7 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS_Clean
              } else {
                  ItemStack var9;
                  if (this.objectMouseOver.typeOfHit == 1) {
-@@ -474,11 +454,6 @@
+@@ -475,11 +454,6 @@
                          EntityPlayerSP var12 = var10000;
                          InventoryPlayer var11;
                          int var19 = (var9 = (var11 = var10000.inventory).getStackInSlot(var11.currentItem)) != null ? Item.itemsList[var9.itemID].getDamageVsEntity() : 1;
@@ -157,7 +176,7 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS_Clean
                          int var17 = var19;
                          if (var19 > 0) {
                              var14.attackEntityFrom(var12, var17);
-@@ -494,7 +469,6 @@
+@@ -495,7 +469,6 @@
                          return;
                      }
                  } else if (this.objectMouseOver.typeOfHit == 0) {
@@ -165,23 +184,27 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS_Clean
                      int var10 = this.objectMouseOver.blockX;
                      var3 = this.objectMouseOver.blockY;
                      int var13 = this.objectMouseOver.blockZ;
-@@ -517,14 +491,10 @@
+@@ -518,18 +491,10 @@
                              return;
                          }
  
+-                        boolean usedSuccessfully = false;
 -                        if (var1 == 1 && var2 != null) {
--                            itemRightClick (var2, var3, var5);
+-                        	ItemStack itemStack = this.thePlayer.inventory.getCurrentItem();
+-                            int stackSize = 0; if (itemStack != null) stackSize = itemStack.stackSize;
+-                        	usedSuccessfully = itemRightClick (itemStack, stackSize, var5);
 -                        }
 -                        
                          var16 = var9.stackSize;
                          int var18 = var15;
                          var5 = this.theWorld;
--                        if (var9.getItem().onItemUse(var9, this.thePlayer, var5, var10, var3, var13, var18)) {
+-                      
+-                        if (!usedSuccessfully && var9.getItem().onItemUse(var9, this.thePlayer, var5, var10, var3, var13, var18)) {
 +                        if (var9.getItem().onItemUse(var9, var5, var10, var3, var13, var18)) {
                              this.entityRenderer.itemRenderer.equippedItemRender();
                          }
  
-@@ -818,7 +788,7 @@
+@@ -823,7 +788,7 @@
      }
  
      public final void generateLevel(int var1, int var2, int var3, int var4) {
@@ -190,7 +213,7 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS_Clean
          System.gc();
          String var5 = this.session != null ? this.session.username : "anonymous";
          LevelGenerator var6;
-@@ -835,16 +805,9 @@
+@@ -840,16 +805,9 @@
              var3 = var1 /= 2;
              var8 = 256;
          }
@@ -208,7 +231,7 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS_Clean
      }
  
      public final void setLevel(World var1) {
-@@ -860,10 +823,8 @@
+@@ -865,10 +823,8 @@
                  this.theWorld = var1;
              }
          } catch (Throwable var3) {
@@ -220,7 +243,7 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS_Clean
          if (var1 != null) {
              var1.load();
              this.playerController.onWorldChange(var1);
-@@ -894,25 +855,13 @@
+@@ -899,25 +855,13 @@
              this.textureWaterFX.textureId = 0;
              this.textureLavaFX.textureId = 0;
              int var4 = this.renderEngine.getTexture("/water.png");
@@ -407,6 +430,76 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/client/model/ModelRenderer.java MCP
          this.corners = new PositionTextureVertex[8];
          this.faces = new TexturedQuad[6];
 Only in MCP-LTS/src/minecraft/net/minecraft/client/particle: EntityStatusEffectFX.java
+diff -ur MCP-LTS/src/minecraft/net/minecraft/client/physics/AxisAlignedBB.java MCP-LTS_Clean/src/minecraft/net/minecraft/client/physics/AxisAlignedBB.java
+--- MCP-LTS/src/minecraft/net/minecraft/client/physics/AxisAlignedBB.java	2021-12-15 13:51:45.640799000 +0100
++++ MCP-LTS_Clean/src/minecraft/net/minecraft/client/physics/AxisAlignedBB.java	2021-11-10 11:11:51.967441200 +0100
+@@ -267,8 +267,4 @@
+             return var1.xCoord >= this.minX && var1.xCoord <= this.maxX && var1.yCoord >= this.minY && var1.yCoord <= this.maxY;
+         }
+     }
+-    
+-    public AxisAlignedBB getOffsetBoundingBox(float x, float y, float z) {
+-    	return new AxisAlignedBB (this.minX + x, this.minY + y, this.minZ + z, this.maxX + x, this.maxY + y, this.maxZ + z);
+-    }
+ }
+diff -ur MCP-LTS/src/minecraft/net/minecraft/client/player/EntityPlayerSP.java MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/EntityPlayerSP.java
+--- MCP-LTS/src/minecraft/net/minecraft/client/player/EntityPlayerSP.java	2021-12-15 13:31:17.520358700 +0100
++++ MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/EntityPlayerSP.java	2021-11-10 11:11:51.967441200 +0100
+@@ -37,9 +37,6 @@
+ 
+     public final void onLivingUpdate() {
+         this.movementInput.updatePlayerMoveState();
+-        if (this.movementInput.sneak && this.ySize < 0.2F) {
+-            this.ySize = 0.2F;
+-        }
+         super.onLivingUpdate();
+     }
+ 
+@@ -118,8 +115,4 @@
+     public final void onItemPickup(Entity var1) {
+         this.mc.effectRenderer.addEffect(new EntityPickupFX(this.mc.theWorld, var1, this, -0.5F));
+     }
+-    
+-    public boolean isSneaking() {
+-        return this.movementInput.sneak;
+-    }
+ }
+diff -ur MCP-LTS/src/minecraft/net/minecraft/client/player/MovementInput.java MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/MovementInput.java
+--- MCP-LTS/src/minecraft/net/minecraft/client/player/MovementInput.java	2021-12-15 13:26:59.365133800 +0100
++++ MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/MovementInput.java	2021-11-10 11:11:51.967441200 +0100
+@@ -4,7 +4,6 @@
+     public float moveStrafe = 0.0F;
+     public float moveForward = 0.0F;
+     public boolean jump = false;
+-    public boolean sneak = false;
+ 
+     public void updatePlayerMoveState() {
+     }
+diff -ur MCP-LTS/src/minecraft/net/minecraft/client/player/MovementInputFromOptions.java MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/MovementInputFromOptions.java
+--- MCP-LTS/src/minecraft/net/minecraft/client/player/MovementInputFromOptions.java	2021-12-15 13:27:10.077786200 +0100
++++ MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/MovementInputFromOptions.java	2021-11-10 11:11:51.967441200 +0100
+@@ -32,10 +32,6 @@
+             var3 = 4;
+         }
+ 
+-        if (var1 == this.gameSettings.keyBindSneak.keyCode) {
+-            var3 = 5;
+-        }
+-
+         if (var3 >= 0) {
+             this.movementKeyStates[var3] = var2;
+         }
+@@ -69,10 +65,5 @@
+         }
+ 
+         this.jump = this.movementKeyStates[4];
+-        this.sneak = this.movementKeyStates[5];
+-        if (this.sneak) {
+-            this.moveStrafe = (float)((double)this.moveStrafe * 0.3D);
+-            this.moveForward = (float)((double)this.moveForward * 0.3D);
+-        }
+     }
+ }
 diff -ur MCP-LTS/src/minecraft/net/minecraft/client/player/PlayerController.java MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/PlayerController.java
 --- MCP-LTS/src/minecraft/net/minecraft/client/player/PlayerController.java	2021-11-18 23:07:16.570865700 +0100
 +++ MCP-LTS_Clean/src/minecraft/net/minecraft/client/player/PlayerController.java	2021-11-10 11:11:51.967441200 +0100
@@ -1128,7 +1221,7 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/game/block/tileentity/TileEntityFur
              return Item.ingotIron.shiftedIndex;
          } else if (var0 == Block.oreGold.blockID) {
 diff -ur MCP-LTS/src/minecraft/net/minecraft/game/entity/Entity.java MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/Entity.java
---- MCP-LTS/src/minecraft/net/minecraft/game/entity/Entity.java	2021-11-30 11:06:56.926998200 +0100
+--- MCP-LTS/src/minecraft/net/minecraft/game/entity/Entity.java	2021-12-15 13:54:19.547073300 +0100
 +++ MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/Entity.java	2021-11-10 11:11:52.514314200 +0100
 @@ -3,8 +3,6 @@
  import com.mojang.nbt.NBTTagCompound;
@@ -1139,6 +1232,15 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/game/entity/Entity.java MCP-LTS_Cle
  import java.util.ArrayList;
  import java.util.Random;
  import net.minecraft.client.physics.AxisAlignedBB;
+@@ -49,7 +47,7 @@
+     public float lastTickPosX;
+     public float lastTickPosY;
+     public float lastTickPosZ;
+-    public float ySize = 0.0F;
++    private float ySize = 0.0F;
+     public float stepHeight = 0.0F;
+     public boolean noClip = false;
+     private float entityCollisionReduction = 0.0F;
 @@ -154,8 +152,7 @@
              --this.fire;
          }
@@ -1149,7 +1251,49 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/game/entity/Entity.java MCP-LTS_Cle
              this.attackEntityFrom((Entity)null, 10);
              this.fire = 600;
          }
-@@ -349,25 +346,6 @@
+@@ -210,32 +207,6 @@
+             float var7 = var2;
+             float var8 = var3;
+             AxisAlignedBB var9 = this.boundingBox.copy();
+-            
+-            // Added from the future: Sneaking
+-            boolean sneaking = this.onGround && this.isSneaking();
+-            if (sneaking) {
+-                double fvar19;
+-                for(fvar19 = 0.05D; var1 != 0.0D && this.worldObj.getCollidingBoundingBoxes(this.boundingBox.getOffsetBoundingBox(var1, -1.0F, 0.0F)).size() == 0; var6 = var1) {
+-                    if (var1 < fvar19 && var1 >= -fvar19) {
+-                        var1 = 0.0F;
+-                    } else if (var1 > 0.0D) {
+-                        var1 -= fvar19;
+-                    } else {
+-                        var1 += fvar19;
+-                    }
+-                }
+-
+-                for(; var3 != 0.0D && this.worldObj.getCollidingBoundingBoxes(this.boundingBox.getOffsetBoundingBox(0.0F, -1.0F, var3)).size() == 0; var8 = var3) {
+-                    if (var3 < fvar19 && var3 >= -fvar19) {
+-                        var3 = 0.0F;
+-                    } else if (var3 > 0.0D) {
+-                        var3 -= fvar19;
+-                    } else {
+-                        var3 += fvar19;
+-                    }
+-                }
+-            }            
+-            
+             ArrayList var10 = this.worldObj.getCollidingBoundingBoxes(this.boundingBox.addCoord(var1, var2, var3));
+ 
+             for(int var11 = 0; var11 < var10.size(); ++var11) {
+@@ -360,7 +331,7 @@
+             var20 = this.posX - var4;
+             var19 = this.posZ - var5;
+             this.distanceWalkedModified = (float)((double)this.distanceWalkedModified + (double)MathHelper.sqrt_float(var20 * var20 + var19 * var19) * 0.6D);
+-            if (this.canTriggerWalking && !sneaking) {
++            if (this.canTriggerWalking) {
+                 int var21 = (int)this.posX;
+                 int var23 = (int)(this.posY - 0.2F - this.yOffset);
+                 var17 = (int)this.posZ;
+@@ -375,25 +346,6 @@
                      Block.blocksList[var16].onEntityWalking(this.worldObj, var21, var23, var17);
                  }
              }
@@ -1175,8 +1319,19 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/game/entity/Entity.java MCP-LTS_Cle
  
              this.ySize *= 0.4F;
              boolean var22 = this.handleWaterMovement();
+@@ -416,10 +368,6 @@
+ 
+         }
+     }
+-    
+-    public boolean isSneaking() {
+-        return false;
+-    }
+ 
+     protected void dealFireDamage(int var1) {
+         this.attackEntityFrom((Entity)null, 1);
 diff -ur MCP-LTS/src/minecraft/net/minecraft/game/entity/EntityLiving.java MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/EntityLiving.java
---- MCP-LTS/src/minecraft/net/minecraft/game/entity/EntityLiving.java	2021-11-22 23:21:00.640758900 +0100
+--- MCP-LTS/src/minecraft/net/minecraft/game/entity/EntityLiving.java	2021-12-15 15:12:51.306185600 +0100
 +++ MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/EntityLiving.java	2021-11-10 11:11:52.545578000 +0100
 @@ -1,16 +1,7 @@
  package net.minecraft.game.entity;
@@ -1226,7 +1381,26 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/game/entity/EntityLiving.java MCP-L
      }
  
      protected final void setSize(float var1, float var2) {
-@@ -333,20 +314,6 @@
+@@ -310,18 +291,11 @@
+             }
+         }
+ 
+-        if ((var4 = this.scoreForSure()) > 0) {
+-        	this.dropItemWithOffset(var4, 1);
+-        }
+     }
+ 
+     protected int scoreValue() {
+         return 0;
+     }
+-    
+-    protected int scoreForSure() {
+-        return 0;
+-    }
+ 
+     protected final void fall(float var1) {
+         int var3;
+@@ -340,20 +314,6 @@
          var1.setShort("HurtTime", (short)this.hurtTime);
          var1.setShort("DeathTime", (short)this.deathTime);
          var1.setShort("AttackTime", (short)this.attackTime);
@@ -1247,7 +1421,7 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/game/entity/EntityLiving.java MCP-L
      }
  
      protected void readEntityFromNBT(NBTTagCompound var1) {
-@@ -358,17 +325,6 @@
+@@ -365,17 +325,6 @@
          this.hurtTime = var1.getShort("HurtTime");
          this.deathTime = var1.getShort("DeathTime");
          this.attackTime = var1.getShort("AttackTime");
@@ -1265,7 +1439,7 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/game/entity/EntityLiving.java MCP-L
      }
  
      protected String getEntityString() {
-@@ -419,9 +375,8 @@
+@@ -426,9 +375,8 @@
          this.moveStrafing *= 0.98F;
          this.moveForward *= 0.98F;
          this.randomYawVelocity *= 0.9F;
@@ -1277,7 +1451,7 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/game/entity/EntityLiving.java MCP-L
          float var4;
          if (this.handleWaterMovement()) {
              var4 = this.posY;
-@@ -504,123 +459,4 @@
+@@ -511,123 +459,4 @@
          this.setPosition(var1, var2 + this.height / 2.0F, var3);
          return this.worldObj.checkIfAABBIsClear1(this.boundingBox) && this.worldObj.getCollidingBoundingBoxes(this.boundingBox).size() == 0 && !this.worldObj.getIsAnyLiquid(this.boundingBox);
      }
@@ -1430,8 +1604,26 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/game/entity/monster/EntityMob.java 
      }
  }
 diff -ur MCP-LTS/src/minecraft/net/minecraft/game/entity/monster/EntitySkeleton.java MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/monster/EntitySkeleton.java
---- MCP-LTS/src/minecraft/net/minecraft/game/entity/monster/EntitySkeleton.java	2021-12-10 11:58:46.625028700 +0100
+--- MCP-LTS/src/minecraft/net/minecraft/game/entity/monster/EntitySkeleton.java	2021-12-14 16:38:41.367548500 +0100
 +++ MCP-LTS_Clean/src/minecraft/net/minecraft/game/entity/monster/EntitySkeleton.java	2021-11-10 11:11:52.592452400 +0100
+@@ -22,7 +22,7 @@
+         super.onLivingUpdate();
+     }
+ 
+-    protected void attackEntity(Entity var1, float var2) {
++    protected final void attackEntity(Entity var1, float var2) {
+         if (var2 < 10.0F) {
+             var2 = var1.posX - this.posX;
+             float var3 = var1.posZ - this.posZ;
+@@ -34,7 +34,7 @@
+                 this.worldObj.playSoundAtEntity(this, "random.bow", 1.0F, 1.0F / (this.rand.nextFloat() * 0.4F + 0.8F));
+                 this.worldObj.spawnEntityInWorld(var4);
+                 var4.setArrowHeading(var2, var6 + var5, var3, 0.6F, 12.0F);
+-                this.attackTime = 50;
++                this.attackTime = 30;
+             }
+ 
+             this.rotationYaw = (float)(Math.atan2((double)var3, (double)var2) * 180.0D / 3.1415927410125732D) - 90.0F;
 @@ -51,23 +51,11 @@
          super.readEntityFromNBT(var1);
      }
@@ -1599,9 +1791,9 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/game/item/ItemAxe.java MCP-LTS_Clea
  
      public ItemAxe(int var1, int var2) {
 diff -ur MCP-LTS/src/minecraft/net/minecraft/game/item/ItemBlock.java MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemBlock.java
---- MCP-LTS/src/minecraft/net/minecraft/game/item/ItemBlock.java	2021-12-05 09:56:14.694304500 +0100
+--- MCP-LTS/src/minecraft/net/minecraft/game/item/ItemBlock.java	2021-12-13 22:34:38.106481800 +0100
 +++ MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemBlock.java	2021-11-10 11:11:52.686188600 +0100
-@@ -2,11 +2,9 @@
+@@ -2,12 +2,10 @@
  
  import net.minecraft.client.physics.AxisAlignedBB;
  import net.minecraft.game.block.Block;
@@ -1610,10 +1802,12 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/game/item/ItemBlock.java MCP-LTS_Cl
  import net.minecraft.game.level.World;
  
 -public class ItemBlock extends Item {
+-    protected int blockID;
 +public final class ItemBlock extends Item {
-     private int blockID;
++    private int blockID;
  
      public ItemBlock(int var1) {
+         super(var1);
 @@ -15,7 +13,7 @@
          this.setIconIndex(Block.blocksList[var1 + 256].getBlockTextureFromSide(2));
      }
@@ -1686,6 +1880,17 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/game/item/ItemFlintAndSteel.java MC
          if (var6 == 0) {
              --var4;
          }
+diff -ur MCP-LTS/src/minecraft/net/minecraft/game/item/ItemFood.java MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemFood.java
+--- MCP-LTS/src/minecraft/net/minecraft/game/item/ItemFood.java	2021-12-14 10:05:11.009587000 +0100
++++ MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemFood.java	2021-11-10 11:11:52.701828600 +0100
+@@ -13,7 +13,6 @@
+     }
+ 
+     public ItemStack onItemRightClick(ItemStack var1, World var2, EntityPlayer var3) {
+-    	//var2.playSoundAtEntity(var3, "random.bow", 0.5F, 0.4F / (Item.rand.nextFloat() * 0.4F + 0.8F));
+         --var1.stackSize;
+         var3.heal(this.healAmount);
+         return var1;
 diff -ur MCP-LTS/src/minecraft/net/minecraft/game/item/ItemHoe.java MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemHoe.java
 --- MCP-LTS/src/minecraft/net/minecraft/game/item/ItemHoe.java	2021-12-05 09:41:31.892337400 +0100
 +++ MCP-LTS_Clean/src/minecraft/net/minecraft/game/item/ItemHoe.java	2021-11-10 11:11:52.701828600 +0100
@@ -2305,7 +2510,7 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/game/level/World.java MCP-LTS_Clean
          for(int var0 = 0; var0 <= 15; ++var0) {
              float var1 = 1.0F - (float)var0 / 15.0F;
 diff -ur MCP-LTS/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java MCP-LTS_Clean/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java
---- MCP-LTS/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java	2021-12-10 11:29:20.525953600 +0100
+--- MCP-LTS/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java	2021-12-13 14:13:05.604038900 +0100
 +++ MCP-LTS_Clean/src/minecraft/net/minecraft/game/level/generator/LevelGenerator.java	2021-11-10 11:11:52.811206400 +0100
 @@ -2,9 +2,6 @@
  
@@ -2910,7 +3115,7 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/game/level/generator/LevelGenerator
 -        	int blockID; 
 -        	
 -        	// ModLoader
--        	if ((blockID = ModLoader.getWateringBlockID(this)) == -1) {    	
+-        	if ((blockID = ModLoader.getWateringBlockID(this, false)) == -1) {    	
 -	            blockID = Block.waterStill.blockID;
 -	            if (this.levelType == 1) {
 -	                blockID = Block.lavaStill.blockID;
@@ -3237,7 +3442,7 @@ diff -ur MCP-LTS/src/minecraft/net/minecraft/game/level/generator/LevelGenerator
 -    	int var1;
 -    	
 -    	// ModLoader
--    	if ((var1 = ModLoader.getWateringBlockID(this)) == -1) {    	
+-    	if ((var1 = ModLoader.getWateringBlockID(this, true)) == -1) {    	
 -	        var1 = Block.waterStill.blockID;
 -	        if (this.levelType == 1) {
 -	            var1 = Block.lavaStill.blockID;

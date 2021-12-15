@@ -29,10 +29,14 @@ public class EntityThrowableBottle extends ModEntitlyThrowableSimple {
 			damage = 2;
 		} else if (itemID == mod_PoisonLand.itemBottleWater.shiftedIndex) {
 			damage = 4;
+		} else if (itemID == mod_PoisonLand.itemBottleSoup.shiftedIndex) {
+			damage = 4;
+		} else if (itemID == mod_PoisonLand.itemBottleGoo.shiftedIndex) {
+			damage = 8;
 		} else if (itemID == mod_PoisonLand.itemBottleAcid.shiftedIndex) {
 			damage = 10;
 		} else if (itemID == mod_PoisonLand.itemBottlePoison.shiftedIndex) {
-			damage = 100;
+			damage = 1000;
 		}
 		
 		// Splash

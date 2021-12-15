@@ -43,8 +43,8 @@ public class mod_DesertTheme extends BaseMod {
 	}
 	
     public int spawnerSelectMonsterBasedOnPosition (int entityID, World world, int x, int y, int z) {
-    	// If it's a Zombie and it's been placed on sand...
-    	if (entityID == 3 && (world.getBlockId(x, y, z) == Block.sand.blockID || world.getBlockId(x, y - 1, z) == Block.sand.blockID)) {
+    	// If it's a Zombie and it's been placed on sand... But NOT in paradise!
+    	if (world.levelType != 2 && entityID == 3 && (world.getBlockId(x, y, z) == Block.sand.blockID || world.getBlockId(x, y - 1, z) == Block.sand.blockID)) {
         	// It's now a husk!
         	entityID = entityHuskMobID; 
         }
