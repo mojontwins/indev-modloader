@@ -1180,10 +1180,10 @@ To add a new mod you need at least one new class: the one which describes your `
 
 * Add your `Entity`. 
 * Add your `Render` and `BaseModel` if needed.
-* Get a new entity ID from ModLoader:
+* Get a new entity ID from ModLoader. Note that you must use this construction so the entity can be saved properly alongside the level data:
 
 ```java
-    entityTestID = ModLoader.getNewMobID();
+    entityTestID = ModLoader.getNewMobID(EntityTest.class);
 ```
 
 * Configure a renderer for your Entity:
@@ -1311,7 +1311,7 @@ Changes are:
 For rendering, we'll use the same renderer as the Zombie, which happens to be `RenderLiving` with a `ModelZombie` model. So next step is getting an ID for the new entity and configuring a renderer in our mod class:
 
 ```java
-    entityHuskMobID = ModLoader.getNewMobID();
+    entityHuskMobID = ModLoader.getNewMobID(EntityHusk.class);
     ModLoader.addEntityRenderer(EntityHusk.class, new RenderLiving(new ModelZombie (), 0.5F));
 ```
 

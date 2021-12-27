@@ -14,16 +14,22 @@ This is the roadmap which will be constantly changing.
 * [x] Use your mod class to add food.
 * [x] Use your mod class to add tile entities.
 * [x] Use your mod class to add entities.
-* [ ] Use your mod class to add new kind of terrain generation.
-* [ ] Use your mod class to add structures.
+* [x] Use your mod class to add new kind of terrain generation.
+* [x] Use your mod class to add structures.
+* [ ] Make clean ZIP with just ModLoader to modify the obfuscated jar.
+* [ ] Make delta patch with just ModLoader to convert RetroMCP decompiled code to fixed Indev + ModLoader.
+* [ ] Automate the two previous points so I don't have to do the work.
 
 # TODOs
 
 So I don't forget:
 
-* [ ] I will later reimplement the Block ID system using some kind of registry that gets saved alognside worlds so IDs are reassigned when loading worlds.
+* [x] I will later reimplement the Block ID system using some kind of registry that gets saved alognside worlds so IDs are reassigned when loading worlds.
+* [ ] Save / restore & translate level theme ID when saving a theme
+* [ ] Save slots & using folders so I can
+* [ ] Implement pseudo dimensions by binding several .mcmap's together.
 * [x] Implement animations with local atlases via custom Texture FX
-* [ ] Custom fuel
+* [x] Custom fuel
 * [x] Engine fix - Prevent eating food when right-clicking tile entities!
 * [x] Engine fix - Correct bug that makes the indev house not spawn.
 * [x] Engine fix - Arrows less harmful.
@@ -5710,4 +5716,69 @@ The only thing remaining is actually spawning the entity when a skull is put on 
 ```
 
 Last thing to add is the prize item this Diamond Skull drops.
+
+# Fuel
+
+Few things are left to add (at least, from my list, and not counting the alternate world generator stuff I seem to keep in mind). One of them is the ability to add new fuel. It will be achieved by using a rather simple registry (item <-> time) and patching this method in `TileEntityFurnace`:
+
+```java
+    private static int getItemBurnTime(ItemStack var0) {
+        if (var0 == null) {
+            return 0;
+        } else {
+            int var1;
+            if ((var1 = var0.getItem().shiftedIndex) < 256 && Block.blocksList[var1].material == Material.wood) {
+                return 300;
+            } else if (var1 == Item.stick.shiftedIndex) {
+                return 100;
+            } else {
+                return var1 == Item.coal.shiftedIndex ? 1600 : 0;
+            }
+        }
+    }
+```
+
+For example:
+
+```java
+    private static int getItemBurnTime(ItemStack var0) {
+        if (var0 == null) {
+            return 0;
+        } else {
+            int var1;
+            if ((var1 = var0.getItem().shiftedIndex) < 256 && Block.blocksList[var1].material == Material.wood) {
+                return 300;
+            } else if (var1 == Item.stick.shiftedIndex) {
+                return 100;
+            } else {
+                return var1 == Item.coal.shiftedIndex ? 1600 : ModLoader.getItemBurnTime(var1);
+            }
+        }
+    }
+```
+
+And having modloader return 0 by default or the stored value for the passed `shiftedIndex` in `var1` if it exists, than have a `registerFuel` or something to populate the registry:
+
+```java
+    /*
+     * Add fuel
+     */
+    public static void addFuel(int shiftedIndex, int time) {
+        burnTimes.put(shiftedIndex, time);
+    }
+    
+    /*
+     * Fuel hook
+     */
+    public static int getItemBurnTime(int shiftedIndex) {
+        Integer r = burnTimes.get(shiftedIndex);
+        if (r != null) return r.intValue(); else return 0;
+    }
+```
+
+# Custom raising / soiling
+
+I'll proof-of-concept this by creating a cave-type level generator. Main problem is lighting which will be nil. Dunny if there's such a thing as "min light level", if not I'd have to add it in, so nether-like worlds are possible.
+
+The main goal is replacing raising/soiling completely at will in your theme, or be able to use the default vanilla code. First thing is thinking the cleanest way to do so.
 
