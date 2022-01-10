@@ -14,8 +14,8 @@ public class EntityThrowableBottle extends ModEntitlyThrowableSimple {
 		this.itemBottle = itemBottle;
 	}
 
-	protected String getEntityString() {
-		return "throwable_bottle";
+	public String getEntityString() {
+		return "throwableBottle";
 	}
 	
 	public void onImpact(MovingObjectPosition movingObjectPosition) {

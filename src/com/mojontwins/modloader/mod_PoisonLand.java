@@ -1,9 +1,5 @@
 package com.mojontwins.modloader;
 
-import com.mojontwins.util.TextureCoords;
-import com.mojontwins.util.TupleFloat;
-import com.mojontwins.util.TupleInt;
-
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.ModelSkeleton;
 import net.minecraft.client.renderer.RenderBlocks;
@@ -234,10 +230,10 @@ public class mod_PoisonLand extends BaseMod {
 		
 		// New mobs:
 
-		entityPoisonSkeletonMobID = ModLoader.getNewMobID();
+		entityPoisonSkeletonMobID = ModLoader.getNewMobID(EntityPoisonSkeleton.class);
 		ModLoader.addEntityRenderer(EntityPoisonSkeleton.class, new RenderLiving(new ModelSkeleton (), 0.5F));
 		
-		entityDiamondSkeletonMobID = ModLoader.getNewMobID();
+		entityDiamondSkeletonMobID = ModLoader.getNewMobID(EntityDiamondSkeleton.class);
 		ModLoader.addEntityRenderer(EntityDiamondSkeleton.class, new RenderDiamondSkeleton(new ModelSkeleton (), 0.7F));
 		
 		// And the prize

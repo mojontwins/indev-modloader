@@ -11,7 +11,7 @@ public class EntityPoisonSkeleton extends EntitySkeleton {
 		this.texture = "/mob/poison_skeleton.png";
 	}
 
-    protected String getEntityString() {
+    public String getEntityString() {
         return "PoisonSkeleton";
     }
     

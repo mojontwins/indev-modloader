@@ -17,7 +17,7 @@ public class EntityHusk extends EntityMob {
         super.onLivingUpdate();
     }
 
-    protected final String getEntityString() {
+    public  final String getEntityString() {
         return "Husk";
     }
 

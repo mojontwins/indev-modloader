@@ -198,7 +198,7 @@ public abstract class ModEntitlyThrowableSimple extends Entity {
 	public abstract void onImpact(MovingObjectPosition movingObjectPosition);
 	
 	@Override
-	protected String getEntityString() {
+	public String getEntityString() {
 		return "mod.throwablesimple";
 	}
 

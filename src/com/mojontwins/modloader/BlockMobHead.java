@@ -5,7 +5,6 @@ import net.minecraft.client.physics.AxisAlignedBB;
 import net.minecraft.game.block.Block;
 import net.minecraft.game.block.Material;
 import net.minecraft.game.entity.Entity;
-import net.minecraft.game.item.Item;
 import net.minecraft.game.level.World;
 import util.MathHelper;
 

@@ -36,7 +36,7 @@ public class mod_DesertTheme extends BaseMod {
 		
 		// Add husks
 		
-		entityHuskMobID = ModLoader.getNewMobID();
+		entityHuskMobID = ModLoader.getNewMobID(EntityHusk.class);
 		ModLoader.addEntityRenderer(EntityHusk.class, new RenderLiving(new ModelZombie (), 0.5F));
 		// Note how husks are NOT registered as monsters as we don't want the engine to auto-select them.
 

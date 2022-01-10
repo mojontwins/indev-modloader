@@ -14,7 +14,7 @@ public class EntityDiamondSkeleton extends EntitySkeleton {
 		this.health = 800;
 	}
 
-    protected String getEntityString() {
+    public String getEntityString() {
         return "DiamondSkeleton";
     }
     

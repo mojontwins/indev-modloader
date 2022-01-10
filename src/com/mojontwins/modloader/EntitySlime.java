@@ -144,4 +144,8 @@ public class EntitySlime extends EntityLiving {
     protected float getSoundVolume() {
         return 0.6F;
     }
+    
+    public final String getEntityString() {
+        return "Slime";
+    }
 }

@@ -169,7 +169,7 @@ public class mod_Example extends BaseMod {
 		ModLoader.registerBlock(blockSillyBoxEmpty);
 		
 		// Add slimes
-		entitySlimeMobID = ModLoader.getNewMobID();
+		entitySlimeMobID = ModLoader.getNewMobID(EntitySlime.class);
 		ModLoader.addEntityRenderer(EntitySlime.class, new RenderSlime(new ModelSlime (16), new ModelSlime(0), 0.25F));
 		ModLoader.registerMonsterEntity (entitySlimeMobID, EntitySlime.class);
 		

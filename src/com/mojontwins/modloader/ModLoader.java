@@ -27,6 +27,8 @@ import java.util.zip.ZipInputStream;
 
 import javax.imageio.ImageIO;
 
+import com.mojontwins.modloader.registry.RegistrySet;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiNewLevel;
 import net.minecraft.client.physics.AxisAlignedBB;
@@ -45,6 +47,14 @@ import net.minecraft.game.level.generator.LevelGenerator;
 
 public class ModLoader {
 	public static boolean isInitialized;
+	
+	// A registry for IDs
+	public static RegistrySet registrySet;
+	
+	// A translation table for loaded levels
+	public static int[] translation = null;
+	
+	// A list of mods
 	private static final LinkedList<BaseMod> modList = new LinkedList<BaseMod>();
 	
 	// A map for free / used terrain texture indexes
@@ -71,7 +81,7 @@ public class ModLoader {
 	public static int currentTerrainTextureIndex;
 	
 	// Used to get free block IDs when adding new blocks
-	public static int currentFreeBlockId = 64;
+	public static int currentFreeBlockId = 63;
 	
 	// A map for free / used item texture indexes
 	private static final int [] itemTextureIndexes = new int [] {
@@ -120,6 +130,12 @@ public class ModLoader {
     // A sequencer for mob IDs used in Spawner
     private static int currentMobID = 1000;
     
+    // A storage for mob names for the registry
+    private static HashMap<String,Integer> mobNames = new HashMap<String,Integer>();
+    
+    // A storage for mob classes for the registry
+    private static HashMap<String,Class<? extends Entity>> mobClasses = new HashMap<String,Class<? extends Entity>>();
+    
     // A sequencer for level themes
     private static int currentThemeID = 4;
        
@@ -128,6 +144,9 @@ public class ModLoader {
     
     // A TreeMap to store fluids!
     private static TreeMap<Integer,HashMap<String,Object>> customFluids = new TreeMap<Integer,HashMap<String,Object>> ();
+    
+    // A HashMap to store fuel burning times
+    private static HashMap<Integer,Integer> burnTimes = new HashMap<Integer,Integer> ();
     
 	public ModLoader () {
 	}
@@ -199,7 +218,33 @@ public class ModLoader {
 	        for (Iterator<BaseMod> iterator = modList.iterator(); iterator.hasNext();) {
 	        	BaseMod basemod = (BaseMod)iterator.next();
 	        	basemod.modsLoaded ();       	
-	        }			
+	        }
+	        
+	        // Now that everything is loaded, create the registry.      
+	        registrySet = new RegistrySet();
+	        
+	        // Add blocks
+	        for (int i = 0; i < Block.blocksList.length; i ++) {
+	        	Block block = Block.blocksList[i];
+	        	if (block != null) registrySet.put(block.name, i);
+	        }
+	        
+	        // Add mobs
+	        Iterator<String> mobsIterator = mobNames.keySet().iterator();
+	        while (mobsIterator.hasNext()) {
+	        	String mobName = mobsIterator.next();
+	        	registrySet.put(mobName, mobNames.get(mobName));
+	        }
+	        
+	        // Add themes
+	        Iterator<Integer> themesIterator = levelThemes.keySet().iterator();
+	        while (themesIterator.hasNext()) {
+	        	int themeID = themesIterator.next();
+	        	registrySet.put("theme." + levelThemes.get(themeID).themeName, themeID);
+	        }
+	        
+	        System.out.println(registrySet.toString());
+	        
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new RuntimeException ("Exception in ModLoader.init", e);			
@@ -290,7 +335,6 @@ public class ModLoader {
 	 * Registers a new kind of armor
 	 */
     public static int addArmor(String s) throws Exception {
-    	
         // Gets a copy of the `armorFilenamePrefix` array in a list
     	String as[] = (String[]) field_armorList.get(null);
         List<String> list = Arrays.asList(as);
@@ -667,12 +711,27 @@ public class ModLoader {
     /*
      * Recipes & Smelting
      */
-    public static void addRecipe (ItemStack itemStack, Object obj []) {
+    public static void addRecipe(ItemStack itemStack, Object obj []) {
     	ModCraftingManager.addRecipe(itemStack, obj);
     }
     
-    public static void addSmelting (int input, int output) {
+    public static void addSmelting(int input, int output) {
     	ModFurnaceRecipes.addSmeltingRecipe(input, output);
+    }
+    
+    /*
+     * Add fuel
+     */
+    public static void addFuel(int shiftedIndex, int time) {
+    	burnTimes.put(shiftedIndex, time);
+    }
+    
+    /*
+     * Fuel hook
+     */
+    public static int getItemBurnTime(int shiftedIndex) {
+    	Integer r = burnTimes.get(shiftedIndex);
+    	if (r != null) return r.intValue(); else return 0;
     }
     
     /*
@@ -806,7 +865,16 @@ public class ModLoader {
     /*
      * Simple sequencer
      */
-    public static int getNewMobID() {
+    public static int getNewMobID(Class<? extends Entity> entityClass) {
+    	String mobName = "Mob";
+    	try {
+	    	Entity entity = entityClass.getConstructor (World.class).newInstance (new World ());
+	    	mobName = entity.getEntityString();
+    	} catch (Exception e) {
+    		e.printStackTrace();
+    	}
+    	mobNames.put(mobName, currentMobID);
+    	mobClasses.put(mobName, entityClass);
     	return currentMobID ++;
     }
     
@@ -1090,5 +1158,33 @@ public class ModLoader {
 			return ((Block) fluidEntry.get ("source")).blockID;
 		}
 		return -9999;		
+	}
+	
+	/*
+	 * Called from LevelLoader.loadEntity
+	 */
+	public static Entity loadEntity (World world, String entityString) {
+		Entity entity = null;
+		Class<? extends Entity> mobClass = mobClasses.get(entityString);
+		if (mobClass == null) {
+			System.out.println ("Attempt to load non registered entity " + entityString);		
+		} else {
+			try {
+				entity = mobClass.getConstructor (World.class).newInstance (world);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		return entity;
+	}
+	
+	/*
+	 * Compares the current registry with the registry stored in the level file
+	 * and translates the blocks array to the current block IDs.
+	 */
+	public static void translateBlocks (byte[] blocks) {
+		for (int i = 0; i < blocks.length; i ++) {
+			blocks [i] = (byte)(translation[blocks[i]] & 0xff);
+		}
 	}
 }
