@@ -1768,6 +1768,16 @@ Use this to modify any of these world values:
 
 If you return `true`, the **planting** stage will be overriden. Add your custom plants here. 
 
+## Player spawn point
+
+If you want to choose your own spawn point for the player or change the spawn method, override this method **and return true**. The goal is to set `world.xSpawn`, `world.ySpawn`, `world.zSpawn` y `world.rotSpawn`.
+
+```java
+    public boolean findSpawn (LevelGenerator levelGenerator, World world) {
+        return false;
+    }   
+```
+
 ## Registering your new theme
 
 To register a new theme, create your theme class extending `ModLevelTheme`, and then call `ModLoader.RegisterTheme` with a new object of your theme class. The String used in the constructor will be the name of your theme shown in the new level menu:

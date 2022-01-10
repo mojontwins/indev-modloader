@@ -5782,3 +5782,6 @@ I'll proof-of-concept this by creating a cave-type level generator. Main problem
 
 The main goal is replacing raising/soiling completely at will in your theme, or be able to use the default vanilla code. First thing is thinking the cleanest way to do so.
 
+I also have to provide a way to let the developer choose the spawn point, overriding the (fixed) vanilla code.
+
+
