@@ -16,7 +16,17 @@ I'm using [Retro MCP](https://github.com/MCPHackers/RetroMCP) to decompile and m
 
 As you will notice, English is not my first language. That's why I'm using github to write the docs. Pull requests to fix my crappy writing are welcome!
 
-# I wanna fiddle with this before proper releases
+# Installing Modloader for Indev
+
+* Grab a copy of Minecraft in-20100223 `minecraft.jar`. Open with 7zip or other compressed file manager.
+* Open the latest modloader-indev-rXXXX.zip file 7zip or other compressed file manager.
+* Drag & drop all fines from modloader to `minecraft.jar`
+* Delete `META-INF` inside `minecraft.jar`
+* Close all files.
+
+Your mods can go into a  `mods` folder or right into `minecraft.jar`. Mods have the classpath `com.mojontwins.modloader`. Check this git for lots of examples.
+
+# I wanna fiddle with this
 
 Here's what you need to do:
 

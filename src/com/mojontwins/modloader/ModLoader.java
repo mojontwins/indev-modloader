@@ -6,7 +6,6 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
@@ -35,6 +34,7 @@ import net.minecraft.client.physics.AxisAlignedBB;
 import net.minecraft.client.renderer.RenderBlocks;
 import net.minecraft.client.renderer.RenderEngine;
 import net.minecraft.client.renderer.entity.Render;
+import net.minecraft.client.renderer.entity.RenderPlayer;
 import net.minecraft.game.block.Block;
 import net.minecraft.game.entity.Entity;
 import net.minecraft.game.entity.EntityLiving;
@@ -114,11 +114,7 @@ public class ModLoader {
 	
 	// Store here the animated textures
 	public static List<HashMap<String,Object>> animations;
-	
-	// Used to modify RenderPlayer.armorFilenamePrefix
-	private static Field field_armorList = null;
-	private static Field field_modifiers = null;
-	
+		
 	// Store custom block renderers
 	private static final Map<Integer,BaseMod> blockModels = new HashMap<Integer,BaseMod> ();
     private static final Map<Integer,Boolean> blockSpecialInv = new HashMap<Integer,Boolean> ();
@@ -165,15 +161,7 @@ public class ModLoader {
 		// Initialize animations
 		animations = new ArrayList<HashMap<String,Object>>();
 		
-		try {	    
-			// Make some fields accesible
-			field_modifiers = (java.lang.reflect.Field.class).getDeclaredField("modifiers");
-            field_modifiers.setAccessible(true);
-            
-		    field_armorList = (net.minecraft.client.renderer.entity.RenderPlayer.class).getDeclaredFields()[3];
-		    field_modifiers.setInt(field_armorList, field_armorList.getModifiers() & 0xffffffef);
-		    field_armorList.setAccessible(true);
-		    			
+		try {	       			
 	        // Get a path to the minecraft jar.			
 	        File file;
 	
@@ -336,7 +324,7 @@ public class ModLoader {
 	 */
     public static int addArmor(String s) throws Exception {
         // Gets a copy of the `armorFilenamePrefix` array in a list
-    	String as[] = (String[]) field_armorList.get(null);
+    	String as[] = RenderPlayer.armorFilenamePrefix;
         List<String> list = Arrays.asList(as);
         ArrayList<String> arraylist = new ArrayList<String>();
         arraylist.addAll(list);
@@ -350,7 +338,8 @@ public class ModLoader {
         int i = arraylist.indexOf(s);
         
         // And substitute the original static array for the modified one
-        field_armorList.set(null, ((Object)(arraylist.toArray(new String[0]))));
+        //field_armorList.set(null, ((Object)(arraylist.toArray(new String[0]))));
+        RenderPlayer.armorFilenamePrefix = arraylist.toArray(new String[0]);
         
         System.out.println ("Added new armor type " + s + ", renderIndex " + i);
         
@@ -530,7 +519,9 @@ public class ModLoader {
         			ZipEntry zipEntry;       			
         			while ((zipEntry = zipInputStream.getNextEntry()) != null) {
         				String s1 = zipEntry.getName();
-        				if (!zipEntry.isDirectory() && s1.startsWith("mod_") && s1.endsWith(".class")) addMod(classloader, s1);
+        				if (!zipEntry.isDirectory() && s1.indexOf("mod_") != -1 && s1.endsWith(".class")) {
+        					addMod(classloader, s1.substring(s1.lastIndexOf("mod_")));
+        				}
         			}
         			
         			zipInputStream.close();
@@ -944,28 +935,24 @@ public class ModLoader {
     /*
      * Add themes to the menu in GuiNewLevel
      */
-    public static void addNewLevelMenuEntries (GuiNewLevel guiNewLevel) {
-        Field fieldWorldTheme;
+    public static void addNewLevelMenuEntries (GuiNewLevel guiNewLevel) {        
 		try {
-			fieldWorldTheme = guiNewLevel.getClass().getDeclaredField("worldTheme");		
-			fieldWorldTheme.setAccessible(true);
-        	String [] worldTheme = (String []) fieldWorldTheme.get (guiNewLevel);
-
-	        // Modify or replace worldTheme. Cannot add to a static array, so:
-	        List<String> list = Arrays.asList(worldTheme);
+			List<String> list = Arrays.asList(guiNewLevel.worldTheme);
 	        ArrayList<String> arraylist = new ArrayList<String>();
 	        arraylist.addAll(list);
-	
-	        // Here: code to add all world themes defined in ModLoader.
+			
+			// Here: code to add all world themes defined in ModLoader.
 	        Iterator<Integer> it = levelThemes.keySet().iterator();
 	        while (it.hasNext()) {
 	    		Integer themeID = it.next();
 	    		ModLevelTheme levelTheme = levelThemes.get(themeID);
+	    		System.out.println ("addNewLevelMenuEntries  - adding " + levelTheme);
 	    		arraylist.add(levelTheme.themeName);
 	        }
 	        
-	        // And substitute the original static array for the modified one    
-	        fieldWorldTheme.set (guiNewLevel, ((Object)(arraylist.toArray(new String[0]))));
+	        // And substitute the original static array for the modified one
+	        guiNewLevel.worldTheme = arraylist.toArray(new String[0]);
+			
 		} catch (Exception e) {
 			e.printStackTrace();
 		} 
