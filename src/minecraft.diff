@@ -42,7 +42,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/GameSettings.java MCP-
          this.mc = var1;
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java	2021-11-10 11:11:51.701815400 +0100
-+++ MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java	2021-12-14 16:21:00.056470900 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/client/Minecraft.java	2022-02-04 21:28:52.849464900 +0100
 @@ -9,6 +9,8 @@
  import java.nio.ByteBuffer;
  import java.nio.ByteOrder;
@@ -68,7 +68,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS
  import net.minecraft.game.level.World;
  import net.minecraft.game.level.generator.LevelGenerator;
  import org.lwjgl.BufferUtils;
-@@ -58,6 +62,8 @@
+@@ -58,17 +62,18 @@
  import org.lwjgl.opengl.GL11;
  import org.lwjgl.opengl.GLContext;
  
@@ -77,7 +77,10 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS
  public final class Minecraft implements Runnable {
      public PlayerController playerController = new PlayerControllerSP(this);
      private boolean fullscreen = false;
-@@ -68,7 +74,7 @@
+     public int displayWidth;
+     public int displayHeight;
+-    private OpenGlCapsChecker glCapabilities;
+     private Timer timer = new Timer(20.0F);
      public World theWorld;
      public RenderGlobal renderGlobal;
      public EntityPlayerSP thePlayer;
@@ -86,16 +89,62 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS
      public Session session = null;
      public String minecraftUri;
      public Canvas mcCanvas;
-@@ -93,7 +99,7 @@
-     private MinecraftApplet mcApplet;
+@@ -94,6 +99,7 @@
      public SoundManager sndManager;
      public MouseHelper mouseHelper;
--    public File mcDataDir;
-+    public static File mcDataDir;
+     public File mcDataDir;
++    public static File minecraftDir = null;
      private String server;
      private TextureWaterFX textureWaterFX;
      private TextureLavaFX textureLavaFX;
-@@ -310,7 +316,16 @@
+@@ -242,35 +248,9 @@
+             GL11.glMatrixMode(5889 /*GL_PROJECTION*/);
+             GL11.glLoadIdentity();
+             GL11.glMatrixMode(5888 /*GL_MODELVIEW0_ARB*/);
+-            this.glCapabilities = new OpenGlCapsChecker();
+-            String var3 = "minecraft";
+-            String var26 = System.getProperty("user.home", ".");
+-            String var4;
+-            File var27;
+-            switch(EnumOSMappingHelper.osValues[((var4 = System.getProperty("os.name").toLowerCase()).contains("win") ? EnumOS.windows : (var4.contains("mac") ? EnumOS.macos : (var4.contains("solaris") ? EnumOS.solaris : (var4.contains("sunos") ? EnumOS.solaris : (var4.contains("linux") ? EnumOS.linux : (var4.contains("unix") ? EnumOS.linux : EnumOS.unknown)))))).ordinal()]) {
+-            case 1:
+-            case 2:
+-                var27 = new File(var26, '.' + var3 + '/');
+-                break;
+-            case 3:
+-                if ((var4 = System.getenv("APPDATA")) != null) {
+-                    var27 = new File(var4, "." + var3 + '/');
+-                } else {
+-                    var27 = new File(var26, '.' + var3 + '/');
+-                }
+-                break;
+-            case 4:
+-                var27 = new File(var26, "Library/Application Support/" + var3);
+-                break;
+-            default:
+-                var27 = new File(var26, var3 + '/');
+-            }
+-
+-            if (!var27.exists() && !var27.mkdirs()) {
+-                throw new RuntimeException("The working directory could not be created: " + var27);
+-            }
++            new OpenGlCapsChecker();
+ 
+-            this.mcDataDir = var27;
++            this.mcDataDir = getMinecraftDir();
+             this.options = new GameSettings(this, this.mcDataDir);
+             this.sndManager.loadSoundSettings(this.options);
+             this.renderEngine = new RenderEngine(this.options);
+@@ -293,7 +273,7 @@
+                 this.displayGuiScreen(new GuiMainMenu());
+             }
+ 
+-            this.effectRenderer = new EffectRenderer(this.theWorld, this.renderEngine);
++            Minecraft.effectRenderer = new EffectRenderer(this.theWorld, this.renderEngine);
+ 
+             try {
+                 var1.downloadResourcesThread = new ThreadDownloadResources(var1.mcDataDir, var1);
+@@ -310,7 +290,16 @@
  
          long var23 = System.currentTimeMillis();
          int var28 = 0;
@@ -113,7 +162,55 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS
          try {
              while(this.running) {
                  if (this.theWorld != null) {
-@@ -416,6 +431,21 @@
+@@ -383,6 +372,47 @@
+         }
+ 
+     }
++    
++    // I changed this to match newer versions so Betacraft can set the data dir properly!
++    
++    public static File getMinecraftDir () {
++    	if (minecraftDir == null) {
++    		minecraftDir = getAppDir ("minecraft");
++    	}
++    	
++    	return minecraftDir;
++    }
++    	
++    public static File getAppDir (String var3) {
++        String var26 = System.getProperty("user.home", ".");
++        String var4;
++    	File var27;
++    	
++        switch(EnumOSMappingHelper.osValues[((var4 = System.getProperty("os.name").toLowerCase()).contains("win") ? EnumOS.windows : (var4.contains("mac") ? EnumOS.macos : (var4.contains("solaris") ? EnumOS.solaris : (var4.contains("sunos") ? EnumOS.solaris : (var4.contains("linux") ? EnumOS.linux : (var4.contains("unix") ? EnumOS.linux : EnumOS.unknown)))))).ordinal()]) {
++        case 1:
++        case 2:
++            var27 = new File(var26, '.' + var3 + '/');
++            break;
++        case 3:
++            if ((var4 = System.getenv("APPDATA")) != null) {
++                var27 = new File(var4, "." + var3 + '/');
++            } else {
++                var27 = new File(var26, '.' + var3 + '/');
++            }
++            break;
++        case 4:
++            var27 = new File(var26, "Library/Application Support/" + var3);
++            break;
++        default:
++            var27 = new File(var26, var3 + '/');
++        }
++
++        if (!var27.exists() && !var27.mkdirs()) {
++            throw new RuntimeException("The working directory could not be created: " + var27);
++        }
++        
++        return var27;
++    }
+ 
+     public final void setIngameFocus() {
+         if (Display.isActive()) {
+@@ -416,6 +446,21 @@
              this.displayGuiScreen(new GuiIngameMenu());
          }
      }
@@ -135,7 +232,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS
  
      private void clickMouse(int var1) {
          if (var1 != 0 || this.leftClickCounter <= 0) {
-@@ -423,28 +453,19 @@
+@@ -423,28 +468,19 @@
                  this.entityRenderer.itemRenderer.equippedItemRender();
              }
  
@@ -173,7 +270,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS
              } else {
                  ItemStack var9;
                  if (this.objectMouseOver.typeOfHit == 1) {
-@@ -454,6 +475,11 @@
+@@ -454,11 +490,15 @@
                          EntityPlayerSP var12 = var10000;
                          InventoryPlayer var11;
                          int var19 = (var9 = (var11 = var10000.inventory).getStackInSlot(var11.currentItem)) != null ? Item.itemsList[var9.itemID].getDamageVsEntity() : 1;
@@ -185,7 +282,12 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS
                          int var17 = var19;
                          if (var19 > 0) {
                              var14.attackEntityFrom(var12, var17);
-@@ -469,6 +495,7 @@
+                             if ((var2 = var12.inventory.getCurrentItem()) != null && var14 instanceof EntityLiving) {
+-                                EntityLiving var8 = (EntityLiving)var14;
+                                 Item.itemsList[var2.itemID].hitEntity(var2);
+                                 if (var2.stackSize <= 0) {
+                                     var12.displayGUIInventory();
+@@ -469,6 +509,7 @@
                          return;
                      }
                  } else if (this.objectMouseOver.typeOfHit == 0) {
@@ -193,7 +295,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS
                      int var10 = this.objectMouseOver.blockX;
                      var3 = this.objectMouseOver.blockY;
                      int var13 = this.objectMouseOver.blockZ;
-@@ -491,10 +518,18 @@
+@@ -491,10 +532,18 @@
                              return;
                          }
  
@@ -213,7 +315,31 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS
                              this.entityRenderer.itemRenderer.equippedItemRender();
                          }
  
-@@ -788,7 +823,7 @@
+@@ -662,14 +711,13 @@
+                                     }
+ 
+                                     var3 = this.currentScreen == null && Mouse.isButtonDown(0) && this.inventoryScreen;
+-                                    boolean var8 = false;
+                                     if (!this.playerController.isInTestMode && this.leftClickCounter <= 0) {
+                                         if (var3 && this.objectMouseOver != null && this.objectMouseOver.typeOfHit == 0) {
+                                             var2 = this.objectMouseOver.blockX;
+                                             int var7 = this.objectMouseOver.blockY;
+                                             int var4 = this.objectMouseOver.blockZ;
+                                             this.playerController.sendBlockRemoving(var2, var7, var4, this.objectMouseOver.sideHit);
+-                                            this.effectRenderer.addBlockHitEffects(var2, var7, var4, this.objectMouseOver.sideHit);
++                                            Minecraft.effectRenderer.addBlockHitEffects(var2, var7, var4, this.objectMouseOver.sideHit);
+                                         } else {
+                                             this.playerController.resetBlockRemoving();
+                                         }
+@@ -781,14 +829,14 @@
+             }
+ 
+             if (!this.isGamePaused) {
+-                this.effectRenderer.updateEffects();
++                Minecraft.effectRenderer.updateEffects();
+             }
+         }
+ 
      }
  
      public final void generateLevel(int var1, int var2, int var3, int var4) {
@@ -222,7 +348,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS
          System.gc();
          String var5 = this.session != null ? this.session.username : "anonymous";
          LevelGenerator var6;
-@@ -805,9 +840,16 @@
+@@ -805,9 +853,16 @@
              var3 = var1 /= 2;
              var8 = 256;
          }
@@ -240,7 +366,7 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS
      }
  
      public final void setLevel(World var1) {
-@@ -823,8 +865,10 @@
+@@ -823,8 +878,10 @@
                  this.theWorld = var1;
              }
          } catch (Throwable var3) {
@@ -252,7 +378,16 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/Minecraft.java MCP-LTS
          if (var1 != null) {
              var1.load();
              this.playerController.onWorldChange(var1);
-@@ -855,13 +899,25 @@
+@@ -848,20 +905,32 @@
+                 this.renderGlobal.changeWorld(var1);
+             }
+ 
+-            if (this.effectRenderer != null) {
+-                this.effectRenderer.clearEffects(var1);
++            if (Minecraft.effectRenderer != null) {
++                Minecraft.effectRenderer.clearEffects(var1);
+             }
+ 
              this.textureWaterFX.textureId = 0;
              this.textureLavaFX.textureId = 0;
              int var4 = this.renderEngine.getTexture("/water.png");
@@ -673,7 +808,16 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/RenderBlocks.
  }
 diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/RenderEngine.java MCP-LTS/src/minecraft/net/minecraft/client/renderer/RenderEngine.java
 --- MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/RenderEngine.java	2021-11-10 11:11:52.092440200 +0100
-+++ MCP-LTS/src/minecraft/net/minecraft/client/renderer/RenderEngine.java	2021-12-01 08:20:58.299819300 +0100
++++ MCP-LTS/src/minecraft/net/minecraft/client/renderer/RenderEngine.java	2022-02-04 21:28:56.017929300 +0100
+@@ -22,7 +22,7 @@
+     private HashMap textureContentsMap = new HashMap();
+     private IntBuffer singleIntBuffer = BufferUtils.createIntBuffer(1);
+     private ByteBuffer imageData = BufferUtils.createByteBuffer(262144);
+-    private List textureList = new ArrayList();
++    private List<TextureFX> textureList = new ArrayList();
+     private Map urlToImageDataMap = new HashMap();
+     private GameSettings options;
+     private boolean clampTexture = false;
 @@ -173,27 +173,38 @@
      }
  
@@ -695,6 +839,10 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/RenderEngine.
 -            this.imageData.put(var2.imageData);
 -            this.imageData.position(0).limit(var2.imageData.length);
 -            GL11.glTexSubImage2D(3553 /*GL_TEXTURE_2D*/, 0, var2.iconIndex % 16 << 4, var2.iconIndex / 16 << 4, 16, 16, 6408 /*GL_RGBA*/, 5121 /*GL_UNSIGNED_BYTE*/, this.imageData);
+-        }
+-
+-        for(var1 = 0; var1 < this.textureList.size(); ++var1) {
+-            if ((var2 = (TextureFX)this.textureList.get(var1)).textureId > 0) {
 +            this.imageData.put(textureFX.imageData);
 +            this.imageData.position(0).limit(textureFX.imageData.length);
 +            
@@ -704,10 +852,8 @@ diff -ur MCP-LTS_Clean/src/minecraft/net/minecraft/client/renderer/RenderEngine.
 +            }
 +            
 +            GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0, textureFX.iconIndex % 16 << 4, textureFX.iconIndex / 16 << 4, 16, 16, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, this.imageData);
-         }
- 
--        for(var1 = 0; var1 < this.textureList.size(); ++var1) {
--            if ((var2 = (TextureFX)this.textureList.get(var1)).textureId > 0) {
++        }
++
 +        // I dunno what's this for but I will just leave it here...
 +        
 +        for(int var1 = 0; var1 < this.textureList.size(); ++var1) {

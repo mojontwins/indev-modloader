@@ -283,6 +283,7 @@ public class mod_Example extends BaseMod {
     } 
     
 	public void hookGameStart (Minecraft minecraft) {
+		/*
 		minecraft.thePlayer.inventory.setInventorySlotContents(0, new ItemStack(Block.stoneOvenIdle, 1));
 		minecraft.thePlayer.inventory.setInventorySlotContents(1, new ItemStack(Block.workbench, 1));
 		minecraft.thePlayer.inventory.setInventorySlotContents(2, new ItemStack(Item.coal, 64));
@@ -290,6 +291,7 @@ public class mod_Example extends BaseMod {
 		minecraft.thePlayer.inventory.setInventorySlotContents(4, new ItemStack(blockSillyBoxEmpty, 1));
 		minecraft.thePlayer.inventory.setInventorySlotContents(11, new ItemStack(itemSteelSword, 1));
 		minecraft.thePlayer.inventory.setInventorySlotContents(12, new ItemStack(itemSteelPickaxe, 1));
+		*/
 	}
 	
 	public boolean hookOnBlockHarvested (Minecraft minecraft, World world, int x, int y, int z, int blockID, int metadata) {

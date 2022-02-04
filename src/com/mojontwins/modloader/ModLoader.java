@@ -184,7 +184,7 @@ public class ModLoader {
 	        }
 	        
 	        // Calculate the path to the `/mods/` directory, then create it if not present
-	        File modDir = new File(Minecraft.mcDataDir, "/mods/");
+	        File modDir = new File(Minecraft.minecraftDir, "/mods/");
 	        modDir.mkdirs();
 	        
 	        // Load mods in the `/mods/` directory

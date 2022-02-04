@@ -19,12 +19,34 @@ As you will notice, English is not my first language. That's why I'm using githu
 # Installing Modloader for Indev
 
 * Grab a copy of Minecraft in-20100223 `minecraft.jar`. Open with 7zip or other compressed file manager.
-* Open the latest modloader-indev-rXXXX.zip file 7zip or other compressed file manager.
-* Drag & drop all fines from modloader to `minecraft.jar`
+* Open the latest `modloader-indev-rXXXX.zip` file with 7zip or other compressed file manager.
+* Drag & drop all files from modloader to `minecraft.jar`
 * Delete `META-INF` inside `minecraft.jar`
 * Close all files.
 
 Your mods can go into a  `mods` folder or right into `minecraft.jar`. Mods have the classpath `com.mojontwins.modloader`. Check this git for lots of examples.
+
+## Betacraft
+
+Follow these steps if you want to try the example mods included in this repo using Betacraft.
+
+* Open betacraft, create a new instance for Indev Modloader. Call it `Indev Modloader`.
+* Configure the **in-20100223** version.
+* Launch the game once. Close it once it's loaded.
+* Go to `%appdata%/.betacraft/versions/`
+* Copy (or rename) `in-20100223.jar` to `in-20100223-modloader.jar`
+* Go to `%appdata%/.betacraft/versions/jsons/`
+* Copy (or rename) `in-20100223.info` to `in-20100223-modloader.info`
+* Open `in-20100223.jar` with 7zip or other compressed file manager.
+* Open the latest `modloader-indev-rXXXX.zip` file with 7zip or other compressed file manager.
+* Drag & drop all files from `modloader-indev-rXXXX.zip` to `in-20100223-modloader.jar`
+* Delete `META-INF` inside `in-20100223-modloader.jar`
+* Go to `%appdata%/.betacraft/versions/Indev Modloader` (or the name you gave to your new instance).
+* Create a `mods` folder inside.
+* Put `modloader-indev-examples.zip` from this repo inside the `mods` folder, *don't unpack it*.
+* Launch Betacraft, select the `Indev Modloader` instance.
+* Click on [Select Version] and select `in-20100223-modload`
+* Click `Play`. Enjoy the bug fixes and the new level themes.
 
 # I wanna fiddle with this
 

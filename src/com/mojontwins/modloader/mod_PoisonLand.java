@@ -289,22 +289,22 @@ public class mod_PoisonLand extends BaseMod {
 	}
 	
 	public void hookGenerateStructures (LevelGenerator levelGenerator, World world) {
-		
+		/*
 		world.setBlockAndMetadataWithNotify(world.xSpawn - 1, world.ySpawn - 1, world.zSpawn - 1, blockCauldronAcid.blockID, 2);
 		world.setBlockAndMetadataWithNotify(world.xSpawn, world.ySpawn - 1, world.zSpawn - 2, blockCauldronWater.blockID, 4);
 		world.setBlockAndMetadataWithNotify(world.xSpawn + 1, world.ySpawn - 1, world.zSpawn - 1, blockCauldronPoison.blockID, 5);
 		world.setBlockAndMetadataWithNotify(world.xSpawn, world.ySpawn - 1, world.zSpawn+ 1, blockCauldronEmpty.blockID, 3);
-		
+		*/
 	}
 	
 	public void hookGameStart (Minecraft minecraft) {
-		
+		/*
 		minecraft.thePlayer.inventory.setInventorySlotContents(4, new ItemStack(blockSkullHead, 1));
 		minecraft.thePlayer.inventory.setInventorySlotContents(5, new ItemStack(itemBottleEmpty, 1));
 		minecraft.thePlayer.inventory.setInventorySlotContents(6, new ItemStack(itemBottleEmpty, 1));
 		minecraft.thePlayer.inventory.setInventorySlotContents(7, new ItemStack(blockBigMushroomBrown, 64));
 		minecraft.thePlayer.inventory.setInventorySlotContents(8, new ItemStack(Block.blockDiamond, 64));
-		
+		*/
 	}
 
 }
