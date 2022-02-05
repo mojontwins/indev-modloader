@@ -70,4 +70,7 @@ You can check the diary and read my babble about coding this thing:
 
 # Documentation
 
-Not very good but at least it *exists*: 
+Not very good but at least it *exists*:
+
+* [Reference](https://github.com/mojontwins/indev-modloader/blob/main/reference.md).
+* [Development diary](https://github.com/mojontwins/indev-modloader/blob/main/diary.md).
